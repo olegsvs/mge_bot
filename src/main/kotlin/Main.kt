@@ -48,11 +48,10 @@ val dotenv = Dotenv.load()
 val botAccessToken = dotenv.get("TWITCH_OAUTH_TOKEN").replace("'", "")
 const val minuteInMillis = 60_000L
 const val hourInMillis = 3_600_000L
-const val infoRefreshRateTimeMinutes: Int = 20
-const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 20m
-const val mapRefreshRateTimeMillis: Long = 5 * minuteInMillis // 5m
+const val infoRefreshRateTimeMinutes: Int = 10
+const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 10m
 const val twitchDefaultRefreshRateTokensTimeMillis: Long = 3 * hourInMillis // 3h
-const val twitchCommandsCoolDownInMillis: Long = 25 * minuteInMillis // 25m
+const val twitchCommandsCoolDownInMillis: Long = 10 * minuteInMillis // 10m
 
 val tgBotToken = dotenv.get("TG_BOT_TOKEN").replace("'", "")
 val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
@@ -71,8 +70,8 @@ var bases: Bases = Bases(listOf())
 var lastDateTimeUpdated = ""
 var lastTimeUpdated = ""
 var trophiesUrl = ""
-var mapUrl = "https://telegra.ph/MGE-Map-03-05"
-var editMapUrl = "https://api.telegra.ph/editPage/MGE-Map-03-05"
+var mapUrl = "https://telegra.ph/MGE-Map-07-06"
+var editMapUrl = "https://api.telegra.ph/editPage/MGE-Map-07-06"
 val coolDowns: MutableList<CoolDown> = mutableListOf()
 
 data class PlayerExtended(
@@ -257,17 +256,10 @@ val tgBot = bot {
 fun main(args: Array<String>) {
     logger.info("Bot started")
     tgBot.startPolling()
-
     Timer().scheduleAtFixedRate(object : TimerTask() {
         override fun run() {
             runBlocking {
                 refreshMapTask()
-            }
-        }
-    }, 0L, mapRefreshRateTimeMillis)
-    Timer().scheduleAtFixedRate(object : TimerTask() {
-        override fun run() {
-            runBlocking {
                 fetchData()
             }
         }
@@ -324,7 +316,7 @@ suspend fun fetchData() {
         val localLastTimeUpdated = LocalDateTime.now().format(timeOnlyFormatter)
         playersExt.players.forEachIndexed { index, player ->
             val telegraphUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-03-02") {
+                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-07-06") {
                     timeout {
                         requestTimeoutMillis = 60000
                     }
@@ -340,7 +332,7 @@ suspend fun fetchData() {
                 }.body<Root>().result.url
             delay(2000L)
             val inventoryUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-inv-03-02") {
+                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-inv-07-06") {
                     timeout {
                         requestTimeoutMillis = 60000
                     }
@@ -356,7 +348,7 @@ suspend fun fetchData() {
                 }.body<Root>().result.url
             delay(2000L)
             val effectsUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-effects-03-03") {
+                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-effects-07-06") {
                     timeout {
                         requestTimeoutMillis = 60000
                     }
@@ -372,7 +364,7 @@ suspend fun fetchData() {
                 }.body<Root>().result.url
             delay(2000L)
             val logGamesUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-games-03-03") {
+                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-games-07-06") {
                     timeout {
                         requestTimeoutMillis = 60000
                     }
@@ -388,7 +380,7 @@ suspend fun fetchData() {
                 }.body<Root>().result.url
             delay(2000L)
             val logActionsUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-actions-03-03") {
+                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-actions-07-06") {
                     timeout {
                         requestTimeoutMillis = 60000
                     }
@@ -415,7 +407,7 @@ suspend fun fetchData() {
             )
         }
         delay(2000L)
-        trophiesUrl = telegraphHttpClient.post("https://api.telegra.ph/editPage/Trofei-03-02") {
+        trophiesUrl = telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Trofei-07-06") {
             timeout {
                 requestTimeoutMillis = 60000
             }
@@ -509,15 +501,15 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             )
         )
         if (!nick.isNullOrEmpty()) {
-            val infoMessage = "Upd.$lastTimeUpdated ${getPlayerTwitchInfo(nick)}${getPlayerTphUrl(nick)}"
+            val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${getPlayerTphUrl(nick)}"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
         } else {
             val shortSummary = playersExt.players.map {
-                "@${it.name} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
+                "${it.name} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
             }
-            val infoMessage = "Upd.$lastTimeUpdated " + shortSummary.toString()
+            val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
                 .removeSuffix("]")
                 .removePrefix("[") + " Подробнее !mge_info nick Текущие игры !mge_games"
             infoMessage.chunked(499).map {
@@ -561,9 +553,9 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
             )
         )
         val shortSummary = playersExt.players.map {
-            "@${it.name} \uD83C\uDFAE${it.currentGameTwitch}"
+            "${it.name} \uD83C\uDFAE${it.currentGameTwitch}"
         }
-        val infoMessage = "Upd.$lastTimeUpdated " + shortSummary.toString()
+        val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
             .removeSuffix("]")
             .removePrefix("[") + " Подробнее !mge_info nick"
         infoMessage.chunked(499).map {
@@ -613,7 +605,7 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
                 ),
                 InlineKeyboardButton.Url(
                     text = "Сайт MGE",
-                    url = "https://",
+                    url = "https://mge.secret",
                 ),
             ),
         )
@@ -682,7 +674,7 @@ fun getPlayerTgInfo(nick: String): String {
 fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
         ?: return "Игрок под ником $nick не найден Sadge"
-    return """👉@${playerExt.player.name} Ур.${playerExt.player.level.current}${playerExt.player.experience}
+    return """👉 ${playerExt.player.name} Ур.${playerExt.player.level.current}${playerExt.player.experience}
 🎮${playerExt.player.currentGameTwitch}
 ⭐${playerExt.player.actionPoints.turns} ${playerExt.player.actionPoints.movement.toTwitchString()} ${playerExt.player.actionPoints.exploring.toTwitchString()}
 Доход ${DecimalFormat("# ##0").format(playerExt.player.dailyIncome)}

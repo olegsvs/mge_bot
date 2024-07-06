@@ -338,7 +338,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://mge.su"),
+                attrs = Attrs(href = "https://mge.secret"),
                 children = Json.encodeToJsonElement(listOf("Сайт MGE")),
             )
         )
@@ -350,7 +350,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://telegra.ph/Trofei-03-02"),
+                attrs = Attrs(href = "https://telegra.ph/MGE-Trofei-07-06"),
                 children = Json.encodeToJsonElement(listOf("Трофеи")),
             )
         )
@@ -374,7 +374,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-inv-03-02"),
+                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-inv-07-06"),
                 children = Json.encodeToJsonElement(listOf("Инвентарь ${player.name}")),
             )
         )
@@ -386,7 +386,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-effects-03-03"),
+                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-effects-07-06"),
                 children = Json.encodeToJsonElement(listOf("Эффекты ${player.name}")),
             )
         )
@@ -398,7 +398,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-log-actions-03-03"),
+                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-log-actions-07-06"),
                 children = Json.encodeToJsonElement(listOf("Лог действий ${player.name}")),
             )
         )
@@ -410,7 +410,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-log-games-03-03"),
+                attrs = Attrs(href = "https://telegra.ph/MGE-Player-${index + 1}-log-games-07-06"),
                 children = Json.encodeToJsonElement(listOf("Лог игр ${player.name}")),
             )
         )
@@ -606,7 +606,7 @@ class TelegraphMapper {
                                 Content(
                                     tag = "img",
                                     attrs = Attrs(
-                                        src = "https://mge.su/assets/${
+                                        src = "https://mge.secret/assets/${
                                             member.data.image.replace(
                                                 " ",
                                                 "%20"
