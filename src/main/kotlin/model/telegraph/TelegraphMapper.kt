@@ -794,7 +794,7 @@ class TelegraphMapper(val mgeSiteUrl: String) {
         return content
     }
 
-    fun mapMGEMapImageToTelegraph(mapUrl: String, localLastUpdated: String): List<Content> {
+    fun mapMGEMapImageToTelegraph(mapUrl: String, mapHeaderUrl: String, localLastUpdated: String): List<Content> {
         val content: MutableList<Content> = mutableListOf()
         content.add(
             Content(
@@ -803,6 +803,14 @@ class TelegraphMapper(val mgeSiteUrl: String) {
             )
         )
         //MGEMap
+        content.add(
+            Content(
+                tag = "img",
+                attrs = Attrs(
+                    src = mapHeaderUrl
+                ),
+            )
+        )
         content.add(
             Content(
                 tag = "img",

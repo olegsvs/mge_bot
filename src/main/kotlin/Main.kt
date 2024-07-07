@@ -454,6 +454,19 @@ suspend fun fetchData() {
                 }
             }.body<UploadResponse>().first().src
             delay(2000L)
+            val mapHeaderImageUrl = telegraphHttpClient.submitFormWithBinaryData("https://telegra.ph/upload",
+                formData = formData {
+                    append("description", "mge_map_header")
+                    append("image", File("mge_map_header.png").readBytes(), Headers.build {
+                        append(HttpHeaders.ContentType, "image/png")
+                        append(HttpHeaders.ContentDisposition, "filename=\"mge_map_header.png\"")
+                    })
+                }) {
+                timeout {
+                    requestTimeoutMillis = 60000
+                }
+            }.body<UploadResponse>().first().src
+            delay(2000L)
             telegraphHttpClient.post(editMapUrl) {
                 timeout {
                     requestTimeoutMillis = 60000
@@ -461,7 +474,7 @@ suspend fun fetchData() {
                 contentType(ContentType.Application.Json)
                 setBody(
                     RootPage(
-                        telegraphMapper.mapMGEMapImageToTelegraph(mapImageUrl, mapUpdateTime),
+                        telegraphMapper.mapMGEMapImageToTelegraph(mapImageUrl, mapHeaderImageUrl, mapUpdateTime),
                         telegraphApikey,
                         "Карта",
                         returnContent = false

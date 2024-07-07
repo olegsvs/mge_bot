@@ -11,6 +11,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from PIL import Image
+import base64
 
 
 load_dotenv()
@@ -29,46 +30,39 @@ chrome_options.add_argument("--no-sandbox")  # linux only
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-dev-shm-usage");
 chrome_options.add_argument('--remote-debugging-port=9222')
-chrome_options.add_argument('--window-size=2000,2000')
-#chrome_options.add_argument('--force-device-scale-factor=0.1')
+chrome_options.add_argument('--window-size=1920,1080')
+#chrome_options.add_argument('--force-device-scale-factor=0.5')
 #driver = webdriver.Chrome(executable_path=os.path.abspath(os.getcwd()) + '/chromedriver',options=chrome_options)
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 url = MGE_MAP_URL
 driver.get(url)
-time.sleep(5)
-image = 'mge_map.png'
+time.sleep(15)
+mge_map = 'mge_map.png'
+mge_map_header = 'mge_map_header.png'
 top_menu = driver.find_element(By.XPATH, '/html/body/div[1]/div[1]')
-player_menu = driver.find_element(By.XPATH, '/html/body/div[1]/div[4]')
-banner = driver.find_element(By.XPATH, '/html/body/div[1]/div[3]')
+#player_menu = driver.find_element(By.XPATH, '/html/body/div[1]/div[4]')
+#banner = driver.find_element(By.XPATH, '/html/body/div[1]/div[3]')
 js_script = '''\
         arguments[0].style.display = 'none';
          '''
 driver.execute_script(js_script, top_menu)
-driver.execute_script(js_script, player_menu)
-driver.execute_script(js_script, banner)
-screenshot_area = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[2]/div/div/canvas')
-with open(image, 'wb') as f:
-    f.write(screenshot_area.screenshot_as_png)
-c_image = Image.open(image)
-width, height = c_image.size
+#driver.execute_script(js_script, player_menu)
+#driver.execute_script(js_script, banner)
+#screenshot_area = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[2]/div/div/canvas')
+
+canvas = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[2]/div/div/canvas')
+canvas_base64 = driver.execute_script("return arguments[0].toDataURL('image/png').substring(22);", canvas)
+canvas_png = base64.b64decode(canvas_base64)
+with open(mge_map, 'wb') as f:
+    f.write(canvas_png)
+map_image = Image.open(mge_map)
+width, height = map_image.size
 new_size = (width//2, height//2)
-resized_image = c_image.resize(new_size)
-resized_image.save(image, optimize=False)
-#im = pyimgur.Imgur(IMGUR_ID)
-#uploaded_image = im.upload_image(image, title='mge_map').link
-#print(uploaded_image)
-#with open('map_imgur.txt', 'w') as f:
-#    f.write(uploaded_image)
+resized_image = map_image.resize(new_size)
+resized_image.save(mge_map, optimize=False)
 
-
-#image="mge_map_header.png"
-#screenshot_area = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]')
-#with open(image, 'wb') as f:
-#    f.write(screenshot_area.screenshot_as_png)
-#driver.close()
-#uploaded_image = im.upload_image(image, title='mge_map_header').link
-#print(uploaded_image)
-#with open('map_header_imgur.txt', 'w') as f:
-#    f.write(uploaded_image)
+map_header_area = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[1]')
+with open(mge_map_header, 'wb') as f:
+    f.write(map_header_area.screenshot_as_png)
 with open('map_update_time.txt', 'w') as f:
     f.write(dt_string)
