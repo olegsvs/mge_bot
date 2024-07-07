@@ -2,10 +2,7 @@ import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.callbackQuery
 import com.github.kotlintelegrambot.dispatcher.command
-import com.github.kotlintelegrambot.entities.ChatId
-import com.github.kotlintelegrambot.entities.InlineKeyboardMarkup
-import com.github.kotlintelegrambot.entities.Message
-import com.github.kotlintelegrambot.entities.ParseMode
+import com.github.kotlintelegrambot.entities.*
 import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential
 import com.github.philippheuer.events4j.simple.SimpleEventHandler
@@ -51,8 +48,8 @@ const val minuteInMillis = 60_000L
 const val hourInMillis = 3_600_000L
 const val infoRefreshRateTimeMinutes: Int = 10
 const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 10m
-const val twitchDefaultRefreshRateTokensTimeMillis: Long = 3 * hourInMillis // 3h
 const val twitchCommandsCoolDownInMillis: Long = 10 * minuteInMillis // 10m
+val twitchDefaultRefreshRateTokensTimeMillis = dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000
 
 val tgBotToken = dotenv.get("TG_BOT_TOKEN").replace("'", "")
 val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
@@ -75,15 +72,15 @@ val twitchChannels = arrayOf(
     "melharucos"
 )
 val vkPlayLinks = mapOf(
-    "UncleBjorn".lowercase() to "https://live.vkplayplay.ru/unclebjorn",
-    "UselessMouth".lowercase() to "https://live.vkplayplay.ru/uzya",
-    "F1ashko".lowercase() to "https://live.vkplayplay.ru/f1ashko",
-    "BrowJey".lowercase() to "https://vkplayplay.live/browjey",
-    "guit88man".lowercase() to "https://live.VkPlayplay.ru/guitman",
-    "RoadHouse".lowercase() to "https://live.vkplayplay.ru/roadhouse",
-    "segall".lowercase() to "https://live.vkplayplay.ru/segall",
+    "UncleBjorn".lowercase() to "https://live.vkplay.ru/unclebjorn",
+    "UselessMouth".lowercase() to "https://live.vkplay.ru/uzya",
+    "F1ashko".lowercase() to "https://live.vkplay.ru/f1ashko",
+    "BrowJey".lowercase() to "https://vkplay.live/browjey",
+    "guit88man".lowercase() to "https://live.vkplay.ru/guitman",
+    "RoadHouse".lowercase() to "https://live.vkplay.ru/roadhouse",
+    "segall".lowercase() to "https://live.vkplay.ru/segall",
     "praden".lowercase() to "https://live.vkplay.ru/praden",
-    "melharucos".lowercase() to "https://live.vkplayplay.ru/melharucos"
+    "melharucos".lowercase() to "https://live.vkplay.ru/melharucos"
 )
 val telegraphMapper = TelegraphMapper(mgeSiteUrl)
 var playersExt: Players = Players(listOf())
@@ -96,6 +93,7 @@ var trophiesUrl = ""
 var mapUrl = "https://telegra.ph/MGE-Map-07-06"
 var editMapUrl = "https://api.telegra.ph/editPage/MGE-Map-07-06"
 val coolDowns: MutableList<CoolDown> = mutableListOf()
+val tgMessagesToDelete = mutableMapOf<Long, ChatId>()
 
 data class PlayerExtended(
     val player: Player,
@@ -219,18 +217,23 @@ val tgBot = bot {
                 )
                 val message = bot.sendMessage(
                     chatId = ChatId.fromId(chatId),
-                    text = getPlayerTgInfo(callbackQuery.data) + if (isPrivateMessage(callbackQuery.message!!)) "" else "\n❎Сообщение автоудалится через 5 минут",
+                    text = "${getTgUserMention(callbackQuery.from)},\n" + getPlayerTgInfo(callbackQuery.data) + if (isPrivateMessage(
+                            callbackQuery.message!!
+                        )
+                    ) "" else "\n❎Сообщение автоудалится через 5 минут",
                     replyMarkup = markup,
                     parseMode = ParseMode.HTML,
                     disableWebPagePreview = true
                 )
                 if (!isPrivateMessage(callbackQuery.message!!)) {
+                    tgMessagesToDelete[message.get().messageId] = ChatId.fromId(chatId)
                     GlobalScope.launch {
                         delay(5 * 60000L)
                         try {
                             bot.deleteMessage(chatId = ChatId.fromId(chatId), message.get().messageId)
+                            tgMessagesToDelete.remove(message.get().messageId)
                         } catch (e: Throwable) {
-                            logger.error("Failed delete callback message callbackQueru: ", e)
+                            logger.error("Failed delete callback message callbackQuery: ", e)
                         }
                     }
                 }
@@ -243,17 +246,21 @@ val tgBot = bot {
             )
             val result = bot.sendMessage(chatId = ChatId.fromId(message.chat.id), text = "Pong!")
             result.fold({
+                tgMessagesToDelete[message.messageId] = ChatId.fromId(message.chat.id)
+                tgMessagesToDelete[it.messageId] = ChatId.fromId(message.chat.id)
                 GlobalScope.launch {
                     delay(60000L)
                     try {
                         bot.deleteMessage(chatId = ChatId.fromId(message.chat.id), it.messageId)
+                        tgMessagesToDelete.remove(it.messageId)
                     } catch (e: Throwable) {
-                        logger.error("Failed delete ping message callbackQueru: ", e)
+                        logger.error("Failed delete ping message callbackQuery: ", e)
                     }
                     try {
                         bot.deleteMessage(chatId = ChatId.fromId(message.chat.id), message.messageId)
+                        tgMessagesToDelete.remove(message.messageId)
                     } catch (e: Throwable) {
-                        logger.error("Failed delete ping initial message callbackQueru: ", e)
+                        logger.error("Failed delete ping initial message callbackQuery: ", e)
                     }
                 }
                 logger.info("On ping command")
@@ -286,6 +293,14 @@ val tgBot = bot {
     }
 }
 
+private fun getTgUserMention(from: User): String {
+    return if (!from.username.isNullOrEmpty()) {
+        "@${from.username}"
+    } else {
+        "${from.firstName} ${if (from.lastName == null) "" else from.lastName}"
+    }
+}
+
 @OptIn(DelicateCoroutinesApi::class)
 fun main(args: Array<String>) {
     logger.info("Bot started")
@@ -300,6 +315,13 @@ fun main(args: Array<String>) {
     }, 0L, infoRefreshRateTimeMillis)
     Timer().scheduleAtFixedRate(object : TimerTask() {
         override fun run() {
+            for (message in tgMessagesToDelete) {
+                try {
+                    tgBot.deleteMessage(chatId = message.value, message.key)
+                } catch (e: Throwable) {
+                    logger.error("Failed delete messages before restart: ", e)
+                }
+            }
             refreshTokensTask()
         }
     }, twitchDefaultRefreshRateTokensTimeMillis, twitchDefaultRefreshRateTokensTimeMillis)
@@ -692,7 +714,7 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
                 " , ", ""
             )
         } + "Судья <a href=\"https://www.twitch.tv/melharucos\"><b>melharucos ${if (magistrateIsOnlineOnTwitch) "\uD83D\uDFE2" else "\uD83D\uDD34"}</b></a>" +
-                " / <a href=\"https://live.vkplayplay.ru/melharucos\"><b>VK</b></a>\n"
+                " / <a href=\"https://live.vkplay.ru/melharucos\"><b>VK</b></a>\n"
 
         val message = tgBot.sendMessage(
             chatId = ChatId.fromId(initialMessage.chat.id),
@@ -704,15 +726,19 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             }${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
         )
         if (!isPrivateMessage(initialMessage)) {
+            tgMessagesToDelete[message.get().messageId] = ChatId.fromId(initialMessage.chat.id)
+            tgMessagesToDelete[initialMessage.messageId] = ChatId.fromId(initialMessage.chat.id)
             GlobalScope.launch {
                 delay(5 * 60000L)
                 try {
                     tgBot.deleteMessage(chatId = ChatId.fromId(initialMessage.chat.id), message.get().messageId)
+                    tgMessagesToDelete.remove(message.get().messageId)
                 } catch (e: Throwable) {
                     logger.error("Failed delete message tgMGEInfoCommand", e)
                 }
                 try {
                     tgBot.deleteMessage(chatId = ChatId.fromId(initialMessage.chat.id), initialMessage.messageId)
+                    tgMessagesToDelete.remove(initialMessage.messageId)
                 } catch (e: Throwable) {
                     logger.error("Failed delete initialMessage tgMGEInfoCommand", e)
                 }
