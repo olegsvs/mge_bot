@@ -60,6 +60,7 @@ val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
 val tgAdminid = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
+val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
 val twitchChannels = arrayOf(
     "segall",
     "roadhouse",
@@ -327,8 +328,10 @@ fun main(args: Array<String>) {
     }, twitchDefaultRefreshRateTokensTimeMillis, twitchDefaultRefreshRateTokensTimeMillis)
 
     twitchClient.chat.joinChannel("olegsvs")
-    for (twitchChannel in twitchChannels) {
-        twitchClient.chat.joinChannel(twitchChannel)
+    if(joinToTwitch) {
+        for (twitchChannel in twitchChannels) {
+            twitchClient.chat.joinChannel(twitchChannel)
+        }
     }
 
     twitchClient.eventManager.onEvent(ChannelMessageEvent::class.java) { event ->
