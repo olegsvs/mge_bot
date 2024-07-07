@@ -12,6 +12,7 @@ import com.github.philippheuer.events4j.simple.SimpleEventHandler
 import com.github.twitch4j.TwitchClient
 import com.github.twitch4j.TwitchClientBuilder
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent
+import com.github.twitch4j.common.enums.CommandPermission
 import com.google.gson.*
 import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.client.*
@@ -62,6 +63,8 @@ val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
 val tgAdminid = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
+val twitchChannels = arrayOf("segall", "roadhouse", "UncleBjorn", "praden", "UselessMouth", "guit88man", "Browjey", "f1ashko")
+val magistrateTwitchChannels = arrayOf("olegsvs", "melharucos")
 val telegraphMapper = TelegraphMapper(mgeSiteUrl)
 var playersExt: Players = Players(listOf())
 var playersExtended: MutableList<PlayerExtended> = mutableListOf()
@@ -279,7 +282,14 @@ fun main(args: Array<String>) {
             refreshTokensTask()
         }
     }, twitchDefaultRefreshRateTokensTimeMillis, twitchDefaultRefreshRateTokensTimeMillis)
-    twitchClient.chat.joinChannel("olegsvs")
+
+    for (twitchChannel in twitchChannels) {
+        twitchClient.chat.joinChannel(twitchChannel)
+    }
+    for (twitchChannel in magistrateTwitchChannels) {
+        twitchClient.chat.joinChannel(twitchChannel)
+    }
+
     twitchClient.eventManager.onEvent(ChannelMessageEvent::class.java) { event ->
         if (event.message.equals("!mge_info")) {
             GlobalScope.launch {
@@ -503,33 +513,35 @@ suspend fun fetchData() {
 fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
         logger.info("twitch, mge_info, message: ${event.message} user: ${event.user.name}")
-        logger.info(coolDowns.toString())
-        val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
-        if (cd != null) {
-            val now = System.currentTimeMillis() / 1000
-            val cdInSeconds = (cd.coolDownMillis / 1000)
-            val diff = (now - cd.lastUsageInMillis / 1000)
-            if (diff < cdInSeconds) {
-                val nextRollTime = (cdInSeconds - diff)
-                val nextRollMinutes = (nextRollTime % 3600) / 60
-                val nextRollSeconds = (nextRollTime % 3600) % 60
-                event.reply(
-                    twitchClient.chat,
-                    "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
-                )
-                return
-            } else {
-                coolDowns.remove(cd)
+        if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
+            logger.info(coolDowns.toString())
+            val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
+            if (cd != null) {
+                val now = System.currentTimeMillis() / 1000
+                val cdInSeconds = (cd.coolDownMillis / 1000)
+                val diff = (now - cd.lastUsageInMillis / 1000)
+                if (diff < cdInSeconds) {
+                    val nextRollTime = (cdInSeconds - diff)
+                    val nextRollMinutes = (nextRollTime % 3600) / 60
+                    val nextRollSeconds = (nextRollTime % 3600) % 60
+                    event.reply(
+                        twitchClient.chat,
+                        "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                    )
+                    return
+                } else {
+                    coolDowns.remove(cd)
+                }
             }
-        }
-        coolDowns.add(
-            CoolDown(
-                channelName = event.channel!!.name,
-                commandText = commandText,
-                coolDownMillis = twitchCommandsCoolDownInMillis,
-                lastUsageInMillis = System.currentTimeMillis()
+            coolDowns.add(
+                CoolDown(
+                    channelName = event.channel!!.name,
+                    commandText = commandText,
+                    coolDownMillis = twitchCommandsCoolDownInMillis,
+                    lastUsageInMillis = System.currentTimeMillis()
+                )
             )
-        )
+        }
         if (!nick.isNullOrEmpty()) {
             val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${getPlayerTphUrl(nick)}"
             infoMessage.chunked(499).map {
@@ -555,33 +567,35 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
 fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
     try {
         logger.info("twitch, mge_games, message: ${event.message} user: ${event.user.name}")
-        logger.info(coolDowns.toString())
-        val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
-        if (cd != null) {
-            val now = System.currentTimeMillis() / 1000
-            val cdInSeconds = (cd.coolDownMillis / 1000)
-            val diff = (now - cd.lastUsageInMillis / 1000)
-            if (diff < cdInSeconds) {
-                val nextRollTime = (cdInSeconds - diff)
-                val nextRollMinutes = (nextRollTime % 3600) / 60
-                val nextRollSeconds = (nextRollTime % 3600) % 60
-                event.reply(
-                    twitchClient.chat,
-                    "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
-                )
-                return
-            } else {
-                coolDowns.remove(cd)
+        if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
+            logger.info(coolDowns.toString())
+            val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
+            if (cd != null) {
+                val now = System.currentTimeMillis() / 1000
+                val cdInSeconds = (cd.coolDownMillis / 1000)
+                val diff = (now - cd.lastUsageInMillis / 1000)
+                if (diff < cdInSeconds) {
+                    val nextRollTime = (cdInSeconds - diff)
+                    val nextRollMinutes = (nextRollTime % 3600) / 60
+                    val nextRollSeconds = (nextRollTime % 3600) % 60
+                    event.reply(
+                        twitchClient.chat,
+                        "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                    )
+                    return
+                } else {
+                    coolDowns.remove(cd)
+                }
             }
-        }
-        coolDowns.add(
-            CoolDown(
-                channelName = event.channel!!.name,
-                commandText = commandText,
-                coolDownMillis = twitchCommandsCoolDownInMillis,
-                lastUsageInMillis = System.currentTimeMillis()
+            coolDowns.add(
+                CoolDown(
+                    channelName = event.channel!!.name,
+                    commandText = commandText,
+                    coolDownMillis = twitchCommandsCoolDownInMillis,
+                    lastUsageInMillis = System.currentTimeMillis()
+                )
             )
-        )
+        }
         val shortSummary = playersExt.players.map {
             "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
         }
