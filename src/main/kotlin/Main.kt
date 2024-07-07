@@ -583,7 +583,7 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
             )
         )
         val shortSummary = playersExt.players.map {
-            "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}${it.currentGameTwitch}"
+            "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
         }
         val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
             .removeSuffix("]")
