@@ -63,8 +63,28 @@ val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
 val tgAdminid = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
-val twitchChannels = arrayOf("segall", "roadhouse", "UncleBjorn", "praden", "UselessMouth", "guit88man", "Browjey", "f1ashko")
-val magistrateTwitchChannels = arrayOf("olegsvs", "melharucos")
+val twitchChannels = arrayOf(
+    "segall",
+    "roadhouse",
+    "UncleBjorn",
+    "praden",
+    "UselessMouth",
+    "guit88man",
+    "Browjey",
+    "f1ashko",
+    "melharucos"
+)
+val vkPlayLinks = mapOf(
+    "UncleBjorn".lowercase() to "https://live.vkplayplay.ru/unclebjorn",
+    "UselessMouth".lowercase() to "https://live.vkplayplay.ru/uzya",
+    "F1ashko".lowercase() to "https://live.vkplayplay.ru/f1ashko",
+    "BrowJey".lowercase() to "https://vkplayplay.live/browjey",
+    "guit88man".lowercase() to "https://live.VkPlayplay.ru/guitman",
+    "RoadHouse".lowercase() to "https://live.vkplayplay.ru/roadhouse",
+    "segall".lowercase() to "https://live.vkplayplay.ru/segall",
+    "praden".lowercase() to "https://live.vkplay.ru/praden",
+    "melharucos".lowercase() to "https://live.vkplayplay.ru/melharucos"
+)
 val telegraphMapper = TelegraphMapper(mgeSiteUrl)
 var playersExt: Players = Players(listOf())
 var playersExtended: MutableList<PlayerExtended> = mutableListOf()
@@ -84,11 +104,12 @@ data class PlayerExtended(
     val effectsUrl: String,
     val logGamesUrl: String,
     val logActionsUrl: String,
-    val onlineOnTwitch: Boolean = false
+    val onlineOnTwitch: Boolean = false,
+    val vkPlayLink: String
 ) {
     val onlineOnTwitchEmoji: String
         get() {
-            if(onlineOnTwitch) {
+            if (onlineOnTwitch) {
                 return "\uD83D\uDFE2"
             } else {
                 return "\uD83D\uDD34"
@@ -283,10 +304,8 @@ fun main(args: Array<String>) {
         }
     }, twitchDefaultRefreshRateTokensTimeMillis, twitchDefaultRefreshRateTokensTimeMillis)
 
+    twitchClient.chat.joinChannel("olegsvs")
     for (twitchChannel in twitchChannels) {
-        twitchClient.chat.joinChannel(twitchChannel)
-    }
-    for (twitchChannel in magistrateTwitchChannels) {
         twitchClient.chat.joinChannel(twitchChannel)
     }
 
@@ -301,7 +320,8 @@ fun main(args: Array<String>) {
                 if (event.message.removePrefix("!mge_info ").trim().isEmpty()) {
                     twitchMGEInfoCommand(event, "!mge_info")
                 } else {
-                    val nick = event.message.removePrefix("!mge_info ").replace("\uDB40\uDC00", "").replace("@", "").trim()
+                    val nick =
+                        event.message.removePrefix("!mge_info ").replace("\uDB40\uDC00", "").replace("@", "").trim()
                     twitchMGEInfoCommand(
                         event,
                         commandText = "!mge_info$nick",
@@ -318,12 +338,10 @@ fun main(args: Array<String>) {
         if (event.message.startsWith("!mping")) {
             pingCommand(event)
         }
-        /*if (event.message.startsWith("!mge_whisper")) {
-            whisperCommand(event)
-        }*/
     }
 }
 
+var magistrateIsOnlineOnTwitch = false
 suspend fun fetchData() {
     try {
         val response = httpClient.get(mgeApiUrl).bodyAsText()
@@ -415,7 +433,8 @@ suspend fun fetchData() {
                     )
                 }.body<Root>().result.url
             delay(2000L)
-            val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=${player.name}"){
+            val vkPlay = vkPlayLinks[player.name.lowercase()]!!
+            val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=${player.name}") {
                 header("Client-ID", twitchClientId)
                 header("Authorization", "Bearer $botAccessToken")
             }.bodyAsText()
@@ -429,7 +448,8 @@ suspend fun fetchData() {
                     effectsUrl,
                     logGamesUrl,
                     logActionsUrl,
-                    isOnlineOnTwitch
+                    isOnlineOnTwitch,
+                    vkPlay
                 )
             )
         }
@@ -494,6 +514,12 @@ suspend fun fetchData() {
         } catch (e: Throwable) {
             logger.error("Failed edit map page: ", e)
         }
+        val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=melharucos") {
+            header("Client-ID", twitchClientId)
+            header("Authorization", "Bearer $botAccessToken")
+        }.bodyAsText()
+        logger.info("twitch, check stream is online, data: $twitchStreamResponse")
+        magistrateIsOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
         lastDateTimeUpdated = localLastUpdated
         lastTimeUpdated = localLastTimeUpdated
     } catch (e: Throwable) {
@@ -543,7 +569,10 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             )
         }
         if (!nick.isNullOrEmpty()) {
-            val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${getPlayerTphUrl(nick)}"
+            val infoMessage =
+                "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${
+                    getPlayerTphUrl(nick)
+                }"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
@@ -551,9 +580,10 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             val shortSummary = playersExt.players.map {
                 "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
             }
-            val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
-                .removeSuffix("]")
-                .removePrefix("[") + " Подробнее !mge_info nick Текущие игры !mge_games"
+            val infoMessage =
+                "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
+                    .removeSuffix("]")
+                    .removePrefix("[") + " Подробнее !mge_info nick Текущие игры !mge_games"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
@@ -599,9 +629,10 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
         val shortSummary = playersExt.players.map {
             "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
         }
-        val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
-            .removeSuffix("]")
-            .removePrefix("[") + " Подробнее !mge_info nick"
+        val infoMessage =
+            "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
+                .removeSuffix("]")
+                .removePrefix("[") + " Подробнее !mge_info nick"
         infoMessage.chunked(499).map {
             event.reply(twitchClient.chat, it)
         }
@@ -654,12 +685,15 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             ),
         )
         val shortSummary = playersExt.players.map {
-            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a> \uD83D\uDC40 Ур. <b>" +
+            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a> " +
+                    " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40 Ур. <b>" +
                     "${it.level.current}${it.experience}</b> \uD83E\uDEF1 Ходы день <b>${it.actionPoints.turns.daily.current}/" +
                     "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}\n").replace(
                 " , ", ""
             )
-        }
+        } + "Судья <a href=\"https://www.twitch.tv/melharucos\"><b>melharucos ${if (magistrateIsOnlineOnTwitch) "\uD83D\uDFE2" else "\uD83D\uDD34"}</b></a>" +
+                " / <a href=\"https://live.vkplayplay.ru/melharucos\"><b>VK</b></a>\n"
+
         val message = tgBot.sendMessage(
             chatId = ChatId.fromId(initialMessage.chat.id),
             replyMarkup = inlineKeyboardMarkup,
@@ -776,20 +810,5 @@ private fun pingCommand(event: ChannelMessageEvent) {
         )
     } catch (e: Throwable) {
         logger.error("Failed pingCommand: ", e)
-    }
-}
-
-private fun whisperCommand(event: ChannelMessageEvent) {
-    logger.info("whisperCommand")
-    try {
-        logger.info("twitch, whisper, message: ${event.message} user: ${event.user.name}")
-        twitchClient.helix.sendWhisper(
-            botOAuth2Credential.accessToken,
-            "1045167616",
-            event.user.id,
-            "Test"
-        ).execute()
-    } catch (e: Throwable) {
-        logger.error("Failed whisper: ", e)
     }
 }
