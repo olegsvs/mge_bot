@@ -8,7 +8,7 @@ import model.mge.Trophies
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class TelegraphMapper {
+class TelegraphMapper(val mgeSiteUrl: String) {
     //2024-02-20T18:47:39.348Z
     private val apiFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private val botFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
@@ -338,7 +338,7 @@ class TelegraphMapper {
         content.add(
             Content(
                 tag = "a",
-                attrs = Attrs(href = "https://mge.secret"),
+                attrs = Attrs(href = mgeSiteUrl),
                 children = Json.encodeToJsonElement(listOf("Сайт MGE")),
             )
         )
@@ -606,7 +606,7 @@ class TelegraphMapper {
                                 Content(
                                     tag = "img",
                                     attrs = Attrs(
-                                        src = "https://mge.secret/assets/${
+                                        src = "${mgeSiteUrl}/assets/${
                                             member.data.image.replace(
                                                 " ",
                                                 "%20"
@@ -803,14 +803,6 @@ class TelegraphMapper {
             )
         )
         //MGEMap
-        content.add(
-            Content(
-                tag = "img",
-                attrs = Attrs(
-                    src = "https://i.imgur.com/10kR6al.png"
-                ),
-            )
-        )
         content.add(
             Content(
                 tag = "img",

@@ -61,8 +61,8 @@ val twitchClientSecret = dotenv.get("TWITCH_CLIENT_SECRET").replace("'", "")
 val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
 val tgAdminid = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
-val mgeMapStaticImageUrl = dotenv.get("MGE_MAP_STATIC_IMAGE_URL").replace("'", "")
-val telegraphMapper = TelegraphMapper()
+val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
+val telegraphMapper = TelegraphMapper(mgeSiteUrl)
 var playersExt: Players = Players(listOf())
 var playersExtended: MutableList<PlayerExtended> = mutableListOf()
 var trophies: Trophies = Trophies(listOf())
@@ -80,8 +80,18 @@ data class PlayerExtended(
     val inventoryUrl: String,
     val effectsUrl: String,
     val logGamesUrl: String,
-    val logActionsUrl: String
-)
+    val logActionsUrl: String,
+    val onlineOnTwitch: Boolean = false
+) {
+    val onlineOnTwitchEmoji: String
+        get() {
+            if(onlineOnTwitch) {
+                return "\uD83D\uDFE2"
+            } else {
+                return "\uD83D\uDD34"
+            }
+        }
+}
 
 val twitchClient: TwitchClient = TwitchClientBuilder.builder()
     .withEnableChat(true)
@@ -395,6 +405,12 @@ suspend fun fetchData() {
                     )
                 }.body<Root>().result.url
             delay(2000L)
+            val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=${player.name}"){
+                header("Client-ID", twitchClientId)
+                header("Authorization", "Bearer $botAccessToken")
+            }.bodyAsText()
+            logger.info("twitch, check stream is online, data: $twitchStreamResponse")
+            val isOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
             playersExtended.add(
                 PlayerExtended(
                     player,
@@ -402,7 +418,8 @@ suspend fun fetchData() {
                     inventoryUrl,
                     effectsUrl,
                     logGamesUrl,
-                    logActionsUrl
+                    logActionsUrl,
+                    isOnlineOnTwitch
                 )
             )
         }
@@ -507,7 +524,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             }
         } else {
             val shortSummary = playersExt.players.map {
-                "${it.name} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
+                "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
             }
             val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
                 .removeSuffix("]")
@@ -553,7 +570,7 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
             )
         )
         val shortSummary = playersExt.players.map {
-            "${it.name} \uD83C\uDFAE${it.currentGameTwitch}"
+            "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}${it.currentGameTwitch}"
         }
         val infoMessage = "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
             .removeSuffix("]")
@@ -605,12 +622,12 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
                 ),
                 InlineKeyboardButton.Url(
                     text = "Сайт MGE",
-                    url = "https://mge.secret",
+                    url = mgeSiteUrl,
                 ),
             ),
         )
         val shortSummary = playersExt.players.map {
-            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} \uD83D\uDC7E</b></a> \uD83D\uDC40 Ур. <b>" +
+            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a> \uD83D\uDC40 Ур. <b>" +
                     "${it.level.current}${it.experience}</b> \uD83E\uDEF1 Ходы день <b>${it.actionPoints.turns.daily.current}/" +
                     "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}\n").replace(
                 " , ", ""
@@ -621,7 +638,7 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             replyMarkup = inlineKeyboardMarkup,
             disableWebPagePreview = true,
             parseMode = ParseMode.HTML,
-            text = "⏰Обновлено <b>${lastDateTimeUpdated}</b> ⏳каждые <b>${infoRefreshRateTimeMinutes}</b> минут\n" + "${
+            text = "⏰Обновлено <b>${lastDateTimeUpdated}</b> \uD83D\uDD04 каждые <b>${infoRefreshRateTimeMinutes}</b> минут\n" + "${
                 shortSummary.toString().removeSuffix("]").removePrefix("[").replace(", ", "")
             }${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
         )
@@ -652,7 +669,7 @@ private fun isPrivateMessage(message: Message): Boolean {
 fun getPlayerTgInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
         ?: return "Игрок под ником <b>$nick</b> не найден Sadge"
-    return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} 👾</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
+    return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji}</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
 🎮Текущая игра ${playerExt.player.currentGameTg}
 ⭐Ходы день <b>${playerExt.player.actionPoints.turns.daily.current}/${playerExt.player.actionPoints.turns.daily.maximum}</b>, неделя <b>${playerExt.player.actionPoints.turns.weekly.current}/${playerExt.player.actionPoints.turns.weekly.maximum}</b>
 ⭐Очки движения <b>${playerExt.player.actionPoints.movement.current}/${playerExt.player.actionPoints.movement.maximum}</b>
@@ -674,7 +691,7 @@ fun getPlayerTgInfo(nick: String): String {
 fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
         ?: return "Игрок под ником $nick не найден Sadge"
-    return """👉 ${playerExt.player.name} Ур.${playerExt.player.level.current}${playerExt.player.experience}
+    return """👉 ${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} Ур.${playerExt.player.level.current}${playerExt.player.experience}
 🎮${playerExt.player.currentGameTwitch}
 ⭐${playerExt.player.actionPoints.turns} ${playerExt.player.actionPoints.movement.toTwitchString()} ${playerExt.player.actionPoints.exploring.toTwitchString()}
 Доход ${DecimalFormat("# ##0").format(playerExt.player.dailyIncome)}
