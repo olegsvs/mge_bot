@@ -43,10 +43,10 @@ data class Player(
     val currentGameTwitch: String
         get() {
             val gameLog = gameLogs.firstOrNull()
-            if(gameLog == null) {
-                return "-"
+            return if(gameLog == null) {
+                "-"
             } else {
-                return "${gameLog.game.name} ${gameLog.statusFormatted}"
+                "${gameLog.game.name} ${gameLog.statusFormatted}"
             }
         }
 

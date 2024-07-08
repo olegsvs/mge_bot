@@ -41,11 +41,10 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 
 val logger: Logger = LoggerFactory.getLogger("bot")
-val dotenv = Dotenv.load()
+val dotenv: Dotenv = Dotenv.load()!!
 
 val botAccessToken = dotenv.get("TWITCH_OAUTH_TOKEN").replace("'", "")
 const val minuteInMillis = 60_000L
-const val hourInMillis = 3_600_000L
 const val infoRefreshRateTimeMinutes: Int = 10
 const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 10m
 const val twitchCommandsCoolDownInMillis: Long = 10 * minuteInMillis // 10m
@@ -57,7 +56,7 @@ val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
 val twitchClientId = dotenv.get("TWITCH_CLIENT_ID").replace("'", "")
 val twitchClientSecret = dotenv.get("TWITCH_CLIENT_SECRET").replace("'", "")
 val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
-val tgAdminid = dotenv.get("TG_ADMIN_ID").replace("'", "")
+val tgAdminId = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
 val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
@@ -108,10 +107,10 @@ data class PlayerExtended(
 ) {
     val onlineOnTwitchEmoji: String
         get() {
-            if (onlineOnTwitch) {
-                return "\uD83D\uDFE2"
+            return if (onlineOnTwitch) {
+                "\uD83D\uDFE2"
             } else {
-                return "\uD83D\uDD34"
+                "\uD83D\uDD34"
             }
         }
 }
@@ -162,7 +161,7 @@ val tgBot = bot {
     token = tgBotToken
 //    logLevel = com.github.kotlintelegrambot.logging.LogLevel.All()
     dispatch {
-        callbackQuery() {
+        callbackQuery {
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             logger.info("tg, callbackQuery, data: ${callbackQuery.data}")
             var nick = callbackQuery.data
@@ -302,6 +301,7 @@ private fun getTgUserMention(from: User): String {
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @OptIn(DelicateCoroutinesApi::class)
 fun main(args: Array<String>) {
     logger.info("Bot started")
@@ -328,7 +328,7 @@ fun main(args: Array<String>) {
     }, twitchDefaultRefreshRateTokensTimeMillis, twitchDefaultRefreshRateTokensTimeMillis)
 
     twitchClient.chat.joinChannel("olegsvs")
-    if(joinToTwitch) {
+    if (joinToTwitch) {
         for (twitchChannel in twitchChannels) {
             twitchClient.chat.joinChannel(twitchChannel)
         }
@@ -458,13 +458,19 @@ suspend fun fetchData() {
                     )
                 }.body<Root>().result.url
             delay(2000L)
-            val vkPlay = vkPlayLinks[player.name.lowercase()]!!
-            val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=${player.name}") {
-                header("Client-ID", twitchClientId)
-                header("Authorization", "Bearer $botAccessToken")
-            }.bodyAsText()
-            logger.info("twitch, check stream is online, data: $twitchStreamResponse")
-            val isOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+            var isOnlineOnTwitch = false
+            try {
+                val twitchStreamResponse =
+                    httpClient.get("https://api.twitch.tv/helix/streams?user_login=${player.name}") {
+                        header("Client-ID", twitchClientId)
+                        header("Authorization", "Bearer $botAccessToken")
+                    }.bodyAsText()
+                logger.info("twitch, check stream is online, data: $twitchStreamResponse")
+                isOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+            } catch (e: Throwable) {
+                logger.error("Failed check stream: ", e)
+            }
+
             playersExtended.add(
                 PlayerExtended(
                     player,
@@ -474,7 +480,7 @@ suspend fun fetchData() {
                     logGamesUrl,
                     logActionsUrl,
                     isOnlineOnTwitch,
-                    vkPlay
+                    vkPlayLinks[player.name.lowercase()]!!
                 )
             )
         }
@@ -550,7 +556,7 @@ suspend fun fetchData() {
     } catch (e: Throwable) {
         try {
             tgBot.sendMessage(
-                chatId = ChatId.fromId(tgAdminid.toLong()),
+                chatId = ChatId.fromId(tgAdminId.toLong()),
                 text = e.toString()
             )
         } catch (e: Throwable) {
@@ -757,7 +763,7 @@ private fun isPrivateMessage(message: Message): Boolean {
 }
 
 fun getPlayerTgInfo(nick: String): String {
-    val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
+    val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок под ником <b>$nick</b> не найден Sadge"
     return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji}</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
 🎮Текущая игра ${playerExt.player.currentGameTg}
@@ -779,7 +785,7 @@ fun getPlayerTgInfo(nick: String): String {
 }
 
 fun getPlayerTwitchInfo(nick: String): String {
-    val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
+    val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок под ником $nick не найден Sadge"
     return """👉 ${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} Ур.${playerExt.player.level.current}${playerExt.player.experience}
 🎮${playerExt.player.currentGameTwitch}
@@ -796,13 +802,13 @@ HP ${playerExt.player.hp.current}/${playerExt.player.hp.maximum}
 }
 
 fun getPlayerTphUrl(nick: String): String {
-    val player = playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
+    val player = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return ""
     return " Инфо ${player.telegraphUrl}"
 }
 
 fun getPlayer(nick: String): PlayerExtended? {
-    return playersExtended.firstOrNull { it.player.name.lowercase().trim().equals(nick.lowercase().trim()) }
+    return playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
 }
 
 fun refreshTokensTask() {

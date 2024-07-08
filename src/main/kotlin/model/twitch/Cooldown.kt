@@ -5,4 +5,4 @@ data class CoolDown(
     val commandText: String,
     val coolDownMillis: Long,
     val lastUsageInMillis: Long,
-) {}
+)

@@ -8,7 +8,7 @@ import model.mge.Trophies
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class TelegraphMapper(val mgeSiteUrl: String) {
+class TelegraphMapper(private val mgeSiteUrl: String) {
     //2024-02-20T18:47:39.348Z
     private val apiFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private val botFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
