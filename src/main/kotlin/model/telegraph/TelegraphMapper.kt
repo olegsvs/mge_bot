@@ -314,15 +314,24 @@ class TelegraphMapper(private val mgeSiteUrl: String) {
                     children = Json.encodeToJsonElement(listOf(trophy.toString()))
                 )
             )
-            trophy.leaderboard.list.sortedByDescending { it.trophyScore.toIntOrNull() }
-                .forEachIndexed { index, leader ->
-                    content.add(
-                        Content(
-                            tag = "p",
-                            children = Json.encodeToJsonElement(listOf("${index + 1}. $leader"))
-                        )
+            if(trophy.leaderboard.list.isEmpty()) {
+                content.add(
+                    Content(
+                        tag = "p",
+                        children = Json.encodeToJsonElement(listOf("Пусто\n"))
                     )
-                }
+                )
+            } else {
+                trophy.leaderboard.list.sortedByDescending { it.trophyScore.toIntOrNull() }
+                    .forEachIndexed { index, leader ->
+                        content.add(
+                            Content(
+                                tag = "p",
+                                children = Json.encodeToJsonElement(listOf("${index + 1}. $leader"))
+                            )
+                        )
+                    }
+            }
         }
         return content
     }
