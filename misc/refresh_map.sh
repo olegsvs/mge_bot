@@ -10,4 +10,5 @@ else
     echo "not less, cp";
     cp -rf /home/bot/mge_bot/mge_map.png /home/www/static/mge_map.png
     cp -rf /home/bot/mge_bot/mge_map_header.png /home/www/static/mge_map_header.png
+    cp -rf /home/bot/mge_bot/map_update_time_new.txt /home/bot/mge_bot/map_update_time.txt
 fi

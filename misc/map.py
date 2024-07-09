@@ -64,5 +64,5 @@ resized_image.save(mge_map, optimize=False)
 map_header_area = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[1]')
 with open(mge_map_header, 'wb') as f:
     f.write(map_header_area.screenshot_as_png)
-with open('map_update_time.txt', 'w') as f:
+with open('map_update_time_new.txt', 'w') as f:
     f.write(dt_string)
