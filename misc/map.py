@@ -30,13 +30,15 @@ chrome_options.add_argument("--no-sandbox")  # linux only
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-dev-shm-usage");
 chrome_options.add_argument('--remote-debugging-port=9222')
-chrome_options.add_argument('--window-size=1920,1080')
+chrome_options.add_argument('--window-size=1950,1950')
 #chrome_options.add_argument('--force-device-scale-factor=0.5')
 #driver = webdriver.Chrome(executable_path=os.path.abspath(os.getcwd()) + '/chromedriver',options=chrome_options)
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 url = MGE_MAP_URL
 driver.get(url)
-time.sleep(15)
+time.sleep(20)
+driver.refresh()
+time.sleep(10)
 mge_map = 'mge_map.png'
 mge_map_header = 'mge_map_header.png'
 top_menu = driver.find_element(By.XPATH, '/html/body/div[1]/div[1]')
@@ -51,10 +53,8 @@ driver.execute_script(js_script, top_menu)
 #screenshot_area = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[2]/div/div/canvas')
 
 canvas = driver.find_element(By.XPATH, '/html/body/div/div[2]/div[2]/div/div/canvas')
-canvas_base64 = driver.execute_script("return arguments[0].toDataURL('image/png').substring(22);", canvas)
-canvas_png = base64.b64decode(canvas_base64)
 with open(mge_map, 'wb') as f:
-    f.write(canvas_png)
+    f.write(canvas.screenshot_as_png)
 map_image = Image.open(mge_map)
 width, height = map_image.size
 new_size = (width//2, height//2)
