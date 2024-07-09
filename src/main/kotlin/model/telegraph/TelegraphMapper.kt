@@ -819,6 +819,13 @@ class TelegraphMapper(private val mgeSiteUrl: String) {
                 ),
             )
         )
+        content.add(
+            Content(
+                tag = "a",
+                attrs = Attrs(href = "$mgeSiteUrl/#/map"),
+                children = Json.encodeToJsonElement(listOf("Интерактивная карта с информацией о секторах")),
+            )
+        )
         return content
     }
 }
