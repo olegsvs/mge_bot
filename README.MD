@@ -1,4 +1,4 @@
-MGE Twitch and Telegram info bot
+MGE [Twitch](https://www.twitch.tv/mge_bot/about) and [Telegram](https://t.me/mge1_bot) info bot
 
 Build jar:
 ```
