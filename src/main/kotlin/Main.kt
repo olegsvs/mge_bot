@@ -545,12 +545,18 @@ suspend fun fetchData() {
         } catch (e: Throwable) {
             logger.error("Failed edit map page: ", e)
         }
-        val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=melharucos") {
-            header("Client-ID", twitchClientId)
-            header("Authorization", "Bearer $botAccessToken")
-        }.bodyAsText()
-        logger.info("twitch, check stream is online, data: $twitchStreamResponse")
-        magistrateIsOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+
+        try {
+            val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=melharucos") {
+                header("Client-ID", twitchClientId)
+                header("Authorization", "Bearer $botAccessToken")
+            }.bodyAsText()
+            logger.info("twitch, check stream is online, data: $twitchStreamResponse")
+            magistrateIsOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+        } catch (e: Throwable) {
+            logger.error("Failed check stream: ", e)
+        }
+
         lastDateTimeUpdated = localLastUpdated
         lastTimeUpdated = localLastTimeUpdated
     } catch (e: Throwable) {
