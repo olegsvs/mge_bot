@@ -122,7 +122,7 @@ val twitchClient: TwitchClient = TwitchClientBuilder.builder()
     .withEnablePubSub(false)
     .withClientId(twitchClientId)
     .withClientSecret(twitchClientSecret)
-//    .withFeignLogLevel(feign.Logger.Level.FULL)
+    .withFeignLogLevel(feign.Logger.Level.BASIC)
     .withDefaultEventHandler(SimpleEventHandler::class.java)
     .build()
 
@@ -241,7 +241,7 @@ val tgBot = bot {
         }
         command("ping") {
             logger.info(
-                "tg, ping, message: ${message.text} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
+                "tg, ping, message: ${message.text} chat?: ${message.chat.title ?: "None"} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
                         " ${message.chat.firstName} ${message.chat.lastName ?: ""} ${message.chat.username ?: ""} ${message.chat.username ?: ""}"
             )
             val result = bot.sendMessage(chatId = ChatId.fromId(message.chat.id), text = "Pong!")
@@ -270,7 +270,7 @@ val tgBot = bot {
         }
         command("start") {
             logger.info(
-                "tg, start, message: ${message.text} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
+                "tg, start, message: ${message.text} chat?: ${message.chat.title ?: "None"} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
                         " ${message.chat.firstName} ${message.chat.lastName ?: ""} ${message.chat.username ?: ""} ${message.chat.username ?: ""}"
             )
             val result = bot.sendMessage(
@@ -285,7 +285,7 @@ val tgBot = bot {
         }
         command("mge_info") {
             logger.info(
-                "tg, mge_info, message: ${message.text} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
+                "tg, mge_info, message: ${message.text} chat?: ${message.chat.title ?: "None"} user: ${message.from?.firstName} ${message.from?.lastName ?: ""} ${message.from?.username ?: ""} ${message.from?.username ?: ""}" +
                         " ${message.chat.firstName} ${message.chat.lastName ?: ""} ${message.chat.username ?: ""} ${message.chat.username ?: ""}, chatId:  ${message.chat.id}"
             )
             GlobalScope.launch { tgMGEInfoCommand(message) }
@@ -575,7 +575,7 @@ suspend fun fetchData() {
 
 fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
-        logger.info("twitch, mge_info, message: ${event.message} user: ${event.user.name}")
+        logger.info("twitch, mge_info, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
             logger.info(coolDowns.toString())
             val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
@@ -633,7 +633,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
 
 fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
     try {
-        logger.info("twitch, mge_games, message: ${event.message} user: ${event.user.name}")
+        logger.info("twitch, mge_games, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
             logger.info(coolDowns.toString())
             val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
@@ -844,7 +844,7 @@ fun refreshMapTask() {
 private fun pingCommand(event: ChannelMessageEvent) {
     logger.info("pingCommand")
     try {
-        logger.info("twitch, ping, message: ${event.message} user: ${event.user.name}")
+        logger.info("twitch, ping, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         event.reply(
             twitchClient.chat,
             "Starege pong"
