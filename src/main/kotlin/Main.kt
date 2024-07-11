@@ -48,7 +48,7 @@ const val minuteInMillis = 60_000L
 const val infoRefreshRateTimeMinutes: Int = 10
 const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 10m
 const val twitchCommandsCoolDownInMillis: Long = 10 * minuteInMillis // 10m
-val twitchDefaultRefreshRateTokensTimeMillis = dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000
+val twitchDefaultRefreshRateTokensTimeMillis = dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000 - 5 * minuteInMillis
 
 val tgBotToken = dotenv.get("TG_BOT_TOKEN").replace("'", "")
 val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
