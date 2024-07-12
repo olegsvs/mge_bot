@@ -576,6 +576,10 @@ suspend fun fetchData() {
 fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
         logger.info("twitch, mge_info, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
+        if(lastTimeUpdated.isEmpty()) {
+            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
+            return
+        }
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
             logger.info(coolDowns.toString())
             val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
@@ -604,10 +608,6 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                     lastUsageInMillis = System.currentTimeMillis()
                 )
             )
-        }
-        if(lastTimeUpdated.isEmpty()) {
-            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
-            return
         }
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
@@ -638,6 +638,10 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
 fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
     try {
         logger.info("twitch, mge_games, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
+        if(lastTimeUpdated.isEmpty()) {
+            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
+            return
+        }
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
             logger.info(coolDowns.toString())
             val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
@@ -666,10 +670,6 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
                     lastUsageInMillis = System.currentTimeMillis()
                 )
             )
-        }
-        if(lastTimeUpdated.isEmpty()) {
-            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
-            return
         }
         val shortSummary = playersExt.players.map {
             "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
