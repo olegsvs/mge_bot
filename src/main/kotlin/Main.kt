@@ -465,24 +465,40 @@ suspend fun fetchData() {
                         header("Client-ID", twitchClientId)
                         header("Authorization", "Bearer $botAccessToken")
                     }.bodyAsText()
-                logger.info("twitch, check stream is online, data: $twitchStreamResponse")
-                isOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+                isOnlineOnTwitch = twitchStreamResponse.contains("viewer_count")
+                logger.info("twitch, check stream is online, player: ${player.name}, result: ${isOnlineOnTwitch}, data: $twitchStreamResponse")
             } catch (e: Throwable) {
                 logger.error("Failed check stream: ", e)
             }
-
-            playersExtended.add(
-                PlayerExtended(
-                    player,
-                    telegraphUrl,
-                    inventoryUrl,
-                    effectsUrl,
-                    logGamesUrl,
-                    logActionsUrl,
-                    isOnlineOnTwitch,
-                    vkPlayLinks[player.name.lowercase()]!!
+            val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == player.name.lowercase().trim() }
+            if(playerExt != null) {
+                playersExtended.set(
+                    playersExtended.indexOf(playerExt),
+                    PlayerExtended(
+                        player,
+                        telegraphUrl,
+                        inventoryUrl,
+                        effectsUrl,
+                        logGamesUrl,
+                        logActionsUrl,
+                        isOnlineOnTwitch,
+                        vkPlayLinks[player.name.lowercase()]!!
+                    )
                 )
-            )
+            } else {
+                playersExtended.add(
+                    PlayerExtended(
+                        player,
+                        telegraphUrl,
+                        inventoryUrl,
+                        effectsUrl,
+                        logGamesUrl,
+                        logActionsUrl,
+                        isOnlineOnTwitch,
+                        vkPlayLinks[player.name.lowercase()]!!
+                    )
+                )
+            }
         }
         delay(2000L)
         trophiesUrl = telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Trofei-07-06") {
@@ -552,7 +568,7 @@ suspend fun fetchData() {
                 header("Authorization", "Bearer $botAccessToken")
             }.bodyAsText()
             logger.info("twitch, check stream is online, data: $twitchStreamResponse")
-            magistrateIsOnlineOnTwitch = !twitchStreamResponse.contains("\"data\":[]")
+            magistrateIsOnlineOnTwitch = twitchStreamResponse.contains("viewer_count")
         } catch (e: Throwable) {
             logger.error("Failed check stream: ", e)
         }
