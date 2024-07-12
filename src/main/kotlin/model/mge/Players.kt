@@ -225,6 +225,10 @@ data class DailyActions(
     override fun toString(): String {
         return "день $current/$maximum"
     }
+
+    fun toTwitchString(): String {
+        return "$current/$maximum"
+    }
 }
 
 @Serializable
@@ -233,7 +237,7 @@ data class ExploringActions(
     val maximum: Int,
 ) {
     fun toTwitchString(): String {
-        return "Очк.развед. $current/$maximum"
+        return "Очк.развед.:$current/$maximum"
     }
 
     override fun toString(): String {
@@ -251,7 +255,7 @@ data class MovementActions(
     }
 
     fun toTwitchString(): String {
-        return "Очк.движ. $current/$maximum"
+        return "Очк.движ.:$current/$maximum"
     }
 }
 
@@ -265,7 +269,7 @@ data class WeeklyActions(
     }
 
     fun toTwitchString(): String {
-        return "нед. $current/$maximum"
+        return "нед.:$current/$maximum"
     }
 }
 
@@ -279,7 +283,7 @@ data class TurnsActions(
     }
 
     fun toTwitchString(): String {
-        return "Ходы ${daily}, ${weekly.toString().lowercase()}"
+        return "Ходы:${daily.toTwitchString()}, ${weekly.toTwitchString().lowercase()}"
     }
 }
 

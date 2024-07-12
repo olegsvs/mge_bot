@@ -605,6 +605,10 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                 )
             )
         }
+        if(lastTimeUpdated.isEmpty()) {
+            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
+            return
+        }
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
                 "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${
@@ -615,7 +619,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             }
         } else {
             val shortSummary = playersExt.players.map {
-                "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} \uD83D\uDC40 Ходы ${it.actionPoints.turns.daily}"
+                "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} \uD83D\uDC40 Ходы:${it.actionPoints.turns.daily.toTwitchString()}"
             }
             val infoMessage =
                 "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
@@ -663,6 +667,10 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
                 )
             )
         }
+        if(lastTimeUpdated.isEmpty()) {
+            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
+            return
+        }
         val shortSummary = playersExt.players.map {
             "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
         }
@@ -681,6 +689,15 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
 @OptIn(DelicateCoroutinesApi::class)
 suspend fun tgMGEInfoCommand(initialMessage: Message) {
     try {
+        if(lastTimeUpdated.isEmpty()) {
+            val message = tgBot.sendMessage(
+                chatId = ChatId.fromId(initialMessage.chat.id),
+                disableWebPagePreview = true,
+                parseMode = ParseMode.HTML,
+                text = "Обновляемся, попробуйте через минуту..."
+            )
+            return
+        }
         val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
             playersExt.players.subList(0, 2).map {
                 InlineKeyboardButton.CallbackData(
@@ -722,9 +739,9 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             ),
         )
         val shortSummary = playersExt.players.map {
-            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a> " +
-                    " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40 Ур. <b>" +
-                    "${it.level.current}${it.experience}</b> \uD83E\uDEF1 Ходы день <b>${it.actionPoints.turns.daily.current}/" +
+            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a>" +
+                    " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
+                    " Ходы <b>${it.actionPoints.turns.daily.current}/" +
                     "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}\n").replace(
                 " , ", ""
             )
@@ -773,6 +790,7 @@ fun getPlayerTgInfo(nick: String): String {
         ?: return "Игрок под ником <b>$nick</b> не найден Sadge"
     return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji}</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
 🎮Текущая игра ${playerExt.player.currentGameTg}
+🤔Состояние ${playerExt.player.states.main.mainStateFormatted}
 ⭐Ходы день <b>${playerExt.player.actionPoints.turns.daily.current}/${playerExt.player.actionPoints.turns.daily.maximum}</b>, неделя <b>${playerExt.player.actionPoints.turns.weekly.current}/${playerExt.player.actionPoints.turns.weekly.maximum}</b>
 ⭐Очки движения <b>${playerExt.player.actionPoints.movement.current}/${playerExt.player.actionPoints.movement.maximum}</b>
 ⭐Очки разведки <b>${playerExt.player.actionPoints.exploring.current}/${playerExt.player.actionPoints.exploring.maximum}</b>
@@ -795,15 +813,16 @@ fun getPlayerTwitchInfo(nick: String): String {
         ?: return "Игрок под ником $nick не найден Sadge"
     return """👉 ${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} Ур.${playerExt.player.level.current}${playerExt.player.experience}
 🎮${playerExt.player.currentGameTwitch}
-⭐${playerExt.player.actionPoints.turns} ${playerExt.player.actionPoints.movement.toTwitchString()} ${playerExt.player.actionPoints.exploring.toTwitchString()}
-Доход ${DecimalFormat("# ##0").format(playerExt.player.dailyIncome)}
-На руках ${DecimalFormat("# ##0").format(playerExt.player.money)}
-Жетоны съезда ${playerExt.player.congressTokens}
-Интерес полиции ${playerExt.player.policeInterest.current}/${playerExt.player.policeInterest.maximum}
-Мораль семьи ${playerExt.player.morale.current}/${playerExt.player.morale.maximum}
-Эффектов 😊${playerExt.player.positiveEffects.size}😐${playerExt.player.negativeEffects.size}😤${playerExt.player.otherEffects.size}
-HP ${playerExt.player.hp.current}/${playerExt.player.hp.maximum}
-Боевая мощь ${playerExt.player.combatPower.current}/${playerExt.player.combatPower.maximum}
+⭐${playerExt.player.actionPoints.turns.toTwitchString()} ${playerExt.player.actionPoints.movement.toTwitchString()} ${playerExt.player.actionPoints.exploring.toTwitchString()}
+Состояние:${playerExt.player.states.main.mainStateFormatted}
+Доход:${DecimalFormat("# ##0").format(playerExt.player.dailyIncome)}
+На руках:${DecimalFormat("# ##0").format(playerExt.player.money)}
+Жетоны съезда:${playerExt.player.congressTokens}
+Интерес полиции:${playerExt.player.policeInterest.current}/${playerExt.player.policeInterest.maximum}
+Мораль семьи:${playerExt.player.morale.current}/${playerExt.player.morale.maximum}
+Эффекты:😊${playerExt.player.positiveEffects.size}😐${playerExt.player.negativeEffects.size}😤${playerExt.player.otherEffects.size}
+HP:${playerExt.player.hp.current}/${playerExt.player.hp.maximum}
+Боевая мощь:${playerExt.player.combatPower.current}/${playerExt.player.combatPower.maximum}
         """.trimIndent()
 }
 
