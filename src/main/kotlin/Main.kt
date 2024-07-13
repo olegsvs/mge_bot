@@ -365,6 +365,18 @@ fun main(args: Array<String>) {
                 }
             }
         }
+        if (event.message.startsWith("!hltb ")) {
+            GlobalScope.launch {
+                if (!event.message.removePrefix("!hltb ").trim().isEmpty()) {
+                    val gameName =
+                        event.message.removePrefix("!hltb ").replace("\uDB40\uDC00", "").replace("@", "").trim()
+                    twitchHLTBCommand(
+                        event,
+                        gameName
+                    )
+                }
+            }
+        }
         if (event.message.startsWith("!mping")) {
             pingCommand(event)
         }
@@ -672,6 +684,35 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
 
     } catch (e: Throwable) {
         logger.error("Failed twitch mge_info command: ", e)
+    }
+}
+
+suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
+    try {
+        logger.info("twitch, hltb, gameName: ${gameName}, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
+        val hltbProxyResponse =
+            httpClient.get("https://hltb-proxy.fly.dev/v1/query?title=${URLEncoder.encode(gameName.replace("™", ""), "utf-8")}").bodyAsText()
+        if(hltbProxyResponse.length<10) {
+            event.reply(twitchClient.chat, "Не найдено Sadge")
+            return
+        }
+        val partName = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("gameName") + "gameName".length + 2, hltbProxyResponse.length)
+        val gameNameResult = partName.subSequence(0, partName.indexOf(",\"")).toString().removePrefix("\"").removeSuffix("\"")
+        val part = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2, hltbProxyResponse.length)
+        val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        if(hours != 0 || minutes != 0) {
+            val result = "$gameNameResult HLTB AVG:${hours}ч${minutes}м"
+            event.reply(twitchClient.chat, result)
+            logger.info("hltb: ${gameName}, result: ${result}, data: $hltbProxyResponse")
+        } else {
+            val result = "$gameNameResult записей о времени не найдено Sadge"
+            event.reply(twitchClient.chat, result)
+            logger.info("hltb: ${gameName}, data: $hltbProxyResponse")
+        }
+    } catch (e: Throwable) {
+        logger.error("Failed twitch hltb command: ", e)
     }
 }
 

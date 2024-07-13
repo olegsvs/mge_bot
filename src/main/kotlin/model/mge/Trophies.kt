@@ -42,9 +42,15 @@ data class Leader(
     val playerID: String,
     val playerName: String,
     val trophyScore: String,
-    val placementScore: String,
+    val placementScore: String?,
 ) {
     override fun toString(): String {
-        return "$playerName, очки: $trophyScore"
+        return "$playerNameFormatted, очки: $trophyScore$placementScoreFormatted"
     }
+
+    private val placementScoreFormatted: String
+        get() = if(placementScore == null || placementScore == "0" || placementScore == "null") "" else " (+${placementScore})"
+
+    private val playerNameFormatted: String
+        get() = if(playerName == "???") "Неизвестно" else playerName
 }
