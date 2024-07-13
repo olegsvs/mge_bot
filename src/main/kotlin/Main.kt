@@ -35,6 +35,7 @@ import model.twitch.CoolDown
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.net.URLEncoder
 import java.text.DecimalFormat
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -103,9 +104,19 @@ data class PlayerExtended(
     val logGamesUrl: String,
     val logActionsUrl: String,
     val onlineOnTwitch: Boolean = false,
-    val vkPlayLink: String
+    val vkPlayLink: String,
+    val currentGameHLTBAvgTime: String,
 ) {
     val onlineOnTwitchEmoji: String
+        get() {
+            return if (onlineOnTwitch) {
+                "\uD83D\uDCE2"
+            } else {
+                ""
+            }
+        }
+
+    val onlineOnTwitchForTelegramEmoji: String
         get() {
             return if (onlineOnTwitch) {
                 "\uD83D\uDFE2"
@@ -159,7 +170,6 @@ val httpClient = HttpClient(CIO) {
 @OptIn(DelicateCoroutinesApi::class)
 val tgBot = bot {
     token = tgBotToken
-//    logLevel = com.github.kotlintelegrambot.logging.LogLevel.All()
     dispatch {
         callbackQuery {
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
@@ -355,11 +365,6 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        if (event.message.equals("!mge_games")) {
-            GlobalScope.launch {
-                twitchMGEGamesCommand(event, "!mge_games")
-            }
-        }
         if (event.message.startsWith("!mping")) {
             pingCommand(event)
         }
@@ -470,6 +475,23 @@ suspend fun fetchData() {
             } catch (e: Throwable) {
                 logger.error("Failed check stream: ", e)
             }
+            var currentGameHLTBAvgTime = ""
+            try {
+                player.gameLogs.firstOrNull()?.let {
+                    val hltbProxyResponse =
+                        httpClient.get("https://hltb-proxy.fly.dev/v1/query?title=${URLEncoder.encode(it.game.name.replace("™", ""), "utf-8")}").bodyAsText()
+                    val part = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2, hltbProxyResponse.length)
+                    val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
+                    val hours = seconds / 3600
+                    val minutes = (seconds % 3600) / 60
+                    if(hours != 0 || minutes != 0) {
+                        currentGameHLTBAvgTime = "HLTB:${hours}ч${minutes}м"
+                    }
+                    logger.info("hltb: ${it.game.name}, result: ${currentGameHLTBAvgTime}, data: $hltbProxyResponse")
+                }
+            } catch (e: Throwable) {
+                logger.error("Failed get hltb: ", e)
+            }
             val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == player.name.lowercase().trim() }
             if(playerExt != null) {
                 playersExtended.set(
@@ -482,7 +504,8 @@ suspend fun fetchData() {
                         logGamesUrl,
                         logActionsUrl,
                         isOnlineOnTwitch,
-                        vkPlayLinks[player.name.lowercase()]!!
+                        vkPlayLinks[player.name.lowercase()]!!,
+                        currentGameHLTBAvgTime
                     )
                 )
             } else {
@@ -495,7 +518,8 @@ suspend fun fetchData() {
                         logGamesUrl,
                         logActionsUrl,
                         isOnlineOnTwitch,
-                        vkPlayLinks[player.name.lowercase()]!!
+                        vkPlayLinks[player.name.lowercase()]!!,
+                        currentGameHLTBAvgTime
                     )
                 )
             }
@@ -597,7 +621,6 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             return
         }
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
-            logger.info(coolDowns.toString())
             val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
             if (cd != null) {
                 val now = System.currentTimeMillis() / 1000
@@ -627,7 +650,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
         }
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
-                "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m ${getPlayerTwitchInfo(nick)}${
+                "$lastTimeUpdated ⟳${infoRefreshRateTimeMinutes}м ${getPlayerTwitchInfo(nick)}${
                     getPlayerTphUrl(nick)
                 }"
             infoMessage.chunked(499).map {
@@ -635,68 +658,18 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             }
         } else {
             val shortSummary = playersExt.players.map {
-                "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} \uD83D\uDC40 Ходы:${it.actionPoints.turns.daily.toTwitchString()}"
+                "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} [${it.currentGameTwitch}] " +
+                        "ДХ:${it.actionPoints.turns.daily.toTwitchString()}"
             }
             val infoMessage =
-                "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
+                "$lastTimeUpdated ⟳${infoRefreshRateTimeMinutes}м " + shortSummary.toString()
                     .removeSuffix("]")
-                    .removePrefix("[") + " Подробнее !mge_info nick Текущие игры !mge_games"
+                    .removePrefix("[") + " Подробнее !mge_info ник"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
         }
 
-    } catch (e: Throwable) {
-        logger.error("Failed twitch mge_info command: ", e)
-    }
-}
-
-fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
-    try {
-        logger.info("twitch, mge_games, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
-        if(lastTimeUpdated.isEmpty()) {
-            event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
-            return
-        }
-        if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
-            logger.info(coolDowns.toString())
-            val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
-            if (cd != null) {
-                val now = System.currentTimeMillis() / 1000
-                val cdInSeconds = (cd.coolDownMillis / 1000)
-                val diff = (now - cd.lastUsageInMillis / 1000)
-                if (diff < cdInSeconds) {
-                    val nextRollTime = (cdInSeconds - diff)
-                    val nextRollMinutes = (nextRollTime % 3600) / 60
-                    val nextRollSeconds = (nextRollTime % 3600) % 60
-                    event.reply(
-                        twitchClient.chat,
-                        "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
-                    )
-                    return
-                } else {
-                    coolDowns.remove(cd)
-                }
-            }
-            coolDowns.add(
-                CoolDown(
-                    channelName = event.channel!!.name,
-                    commandText = commandText,
-                    coolDownMillis = twitchCommandsCoolDownInMillis,
-                    lastUsageInMillis = System.currentTimeMillis()
-                )
-            )
-        }
-        val shortSummary = playersExt.players.map {
-            "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} ${it.currentGameTwitch}"
-        }
-        val infoMessage =
-            "Upd.$lastTimeUpdated \uD83D\uDD04 раз в ${infoRefreshRateTimeMinutes}m " + shortSummary.toString()
-                .removeSuffix("]")
-                .removePrefix("[") + " Подробнее !mge_info nick"
-        infoMessage.chunked(499).map {
-            event.reply(twitchClient.chat, it)
-        }
     } catch (e: Throwable) {
         logger.error("Failed twitch mge_info command: ", e)
     }
@@ -706,7 +679,7 @@ fun twitchMGEGamesCommand(event: ChannelMessageEvent, commandText: String) {
 suspend fun tgMGEInfoCommand(initialMessage: Message) {
     try {
         if(lastTimeUpdated.isEmpty()) {
-            val message = tgBot.sendMessage(
+            tgBot.sendMessage(
                 chatId = ChatId.fromId(initialMessage.chat.id),
                 disableWebPagePreview = true,
                 parseMode = ParseMode.HTML,
@@ -754,11 +727,16 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
                 ),
             ),
         )
+
         val shortSummary = playersExt.players.map {
-            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji}</b></a>" +
+            var twitchGameFormatted = ""
+            if(getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
+                twitchGameFormatted = "\n\uD83D\uDD54"+getPlayer(it.name)!!.currentGameHLTBAvgTime
+            }
+            ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
                     " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
                     " Ходы <b>${it.actionPoints.turns.daily.current}/" +
-                    "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}\n").replace(
+                    "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}${twitchGameFormatted}\n\n").replace(
                 " , ", ""
             )
         } + "Судья <a href=\"https://www.twitch.tv/melharucos\"><b>melharucos ${if (magistrateIsOnlineOnTwitch) "\uD83D\uDFE2" else "\uD83D\uDD34"}</b></a>" +
@@ -804,8 +782,9 @@ private fun isPrivateMessage(message: Message): Boolean {
 fun getPlayerTgInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок под ником <b>$nick</b> не найден Sadge"
-    return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji}</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
+    return """👉<a href="https://www.twitch.tv/${playerExt.player.name}"><b>${playerExt.player.name} ${playerExt.onlineOnTwitchForTelegramEmoji}</b></a> Уровень <b>${playerExt.player.level.current}${playerExt.player.experience}</b>
 🎮Текущая игра ${playerExt.player.currentGameTg}
+🕔${playerExt.currentGameHLTBAvgTime.ifEmpty { "HLTB: -" }}
 🤔Состояние ${playerExt.player.states.main.mainStateFormatted}
 ⭐Ходы день <b>${playerExt.player.actionPoints.turns.daily.current}/${playerExt.player.actionPoints.turns.daily.maximum}</b>, неделя <b>${playerExt.player.actionPoints.turns.weekly.current}/${playerExt.player.actionPoints.turns.weekly.maximum}</b>
 ⭐Очки движения <b>${playerExt.player.actionPoints.movement.current}/${playerExt.player.actionPoints.movement.maximum}</b>
@@ -827,25 +806,25 @@ fun getPlayerTgInfo(nick: String): String {
 fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок под ником $nick не найден Sadge"
-    return """👉 ${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} Ур.${playerExt.player.level.current}${playerExt.player.experience}
-🎮${playerExt.player.currentGameTwitch}
-⭐${playerExt.player.actionPoints.turns.toTwitchString()} ${playerExt.player.actionPoints.movement.toTwitchString()} ${playerExt.player.actionPoints.exploring.toTwitchString()}
-Состояние:${playerExt.player.states.main.mainStateFormatted}
-Доход:${DecimalFormat("# ##0").format(playerExt.player.dailyIncome)}
-На руках:${DecimalFormat("# ##0").format(playerExt.player.money)}
-Жетоны съезда:${playerExt.player.congressTokens}
-Интерес полиции:${playerExt.player.policeInterest.current}/${playerExt.player.policeInterest.maximum}
-Мораль семьи:${playerExt.player.morale.current}/${playerExt.player.morale.maximum}
-Эффекты:😊${playerExt.player.positiveEffects.size}😐${playerExt.player.negativeEffects.size}😤${playerExt.player.otherEffects.size}
-HP:${playerExt.player.hp.current}/${playerExt.player.hp.maximum}
-Боевая мощь:${playerExt.player.combatPower.current}/${playerExt.player.combatPower.maximum}
+    return """${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} УР${playerExt.player.level.current},
+🎮${playerExt.player.currentGameTwitch}${if(playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
+⭐${playerExt.player.actionPoints.turns.toTwitchString()}, ${playerExt.player.actionPoints.movement.toTwitchString()}, ${playerExt.player.actionPoints.exploring.toTwitchString()},
+Статус:${playerExt.player.states.main.mainStateFormatted},
+ДД:${DecimalFormat("# ##0").format(playerExt.player.dailyIncome).trim()},
+Битсов:${DecimalFormat("# ##0").format(playerExt.player.money).trim()},
+ЖС:${playerExt.player.congressTokens},
+Копы:${playerExt.player.policeInterest.current}/${playerExt.player.policeInterest.maximum},
+МС:${playerExt.player.morale.current}/${playerExt.player.morale.maximum},
+Эффекты:😊${playerExt.player.positiveEffects.size}😐${playerExt.player.negativeEffects.size}😤${playerExt.player.otherEffects.size},
+HP:${playerExt.player.hp.current}/${playerExt.player.hp.maximum},
+БМ:${playerExt.player.combatPower.current}/${playerExt.player.combatPower.maximum},
         """.trimIndent()
 }
 
 fun getPlayerTphUrl(nick: String): String {
     val player = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return ""
-    return " Инфо ${player.telegraphUrl}"
+    return " Инфо: ${player.telegraphUrl}"
 }
 
 fun getPlayer(nick: String): PlayerExtended? {

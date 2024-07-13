@@ -729,8 +729,8 @@ class TelegraphMapper(private val mgeSiteUrl: String) {
             var dateTimeText = ""
             try {
                 dateTimeText = "Запись создана: ${
-                    LocalDateTime.parse(gameLog.createdAt, apiFormat).format(botFormat)
-                }, обновлена: ${LocalDateTime.parse(gameLog.updatedAt, apiFormat).format(botFormat)}"
+                    LocalDateTime.parse(gameLog.createdAt, apiFormat).plusHours(3).format(botFormat)
+                }, обновлена: ${LocalDateTime.parse(gameLog.updatedAt, apiFormat).plusHours(3).format(botFormat)}"
             } catch (_: Throwable) {
             }
             if (dateTimeText.isNotEmpty())
@@ -788,7 +788,7 @@ class TelegraphMapper(private val mgeSiteUrl: String) {
             var dateTimeText = actionLog.text
             try {
                 dateTimeText =
-                    "${LocalDateTime.parse(actionLog.updatedAt, apiFormat).format(botFormat)} ${actionLog.text}"
+                    "${LocalDateTime.parse(actionLog.updatedAt, apiFormat).plusHours(3).format(botFormat)} ${actionLog.text}"
             } catch (_: Throwable) {
             }
             content.add(
