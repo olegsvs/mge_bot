@@ -365,11 +365,11 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        if (event.message.startsWith("!hltb ")) {
+        if (event.message.startsWith("!mge_hltb ")) {
             GlobalScope.launch {
-                if (!event.message.removePrefix("!hltb ").trim().isEmpty()) {
+                if (!event.message.removePrefix("!mge_hltb ").trim().isEmpty()) {
                     val gameName =
-                        event.message.removePrefix("!hltb ").replace("\uDB40\uDC00", "").replace("@", "").trim()
+                        event.message.removePrefix("!mge_hltb ").replace("\uDB40\uDC00", "").replace("@", "").trim()
                     twitchHLTBCommand(
                         event,
                         gameName
@@ -676,7 +676,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             val infoMessage =
                 "$lastTimeUpdated ⟳${infoRefreshRateTimeMinutes}м " + shortSummary.toString()
                     .removeSuffix("]")
-                    .removePrefix("[") + " Подробнее !mge_info ник"
+                    .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
