@@ -21,14 +21,12 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 channel = None
-
 logging.basicConfig(
-    # filename=datetime.now().strftime("logs/log_stream_checker_%d_%m_%Y_%H_%M.log"),
+#    filename=datetime.now().strftime("logs/log_stream_checker_%d_%m_%Y_%H_%M.log"),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
 logger = logging.getLogger(__name__)
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -106,8 +104,10 @@ async def check_stream(user_login: str):
                     + username
                     + " "
                     + verb_form
-                    + " стрим!\n"
-                    + stream["title"]
+                    + " стрим!"
+                )
+                msg2 = (
+                    stream["title"]
                     + "\nКатегория: "
                     + stream["game_name"]
                 )
@@ -123,9 +123,11 @@ async def check_stream(user_login: str):
                 if send_msg:
                     logger.info("Stream checker: Send msg " + user_login)
                     try:
-                        await channel.send(
-                            msg + " " + "https://www.twitch.tv/" + user_login
-                        )
+                        embed = discord.Embed(title=msg, description=msg2 + "\n" + "https://www.twitch.tv/" + user_login)
+                        thumbnail += '?t=' + str(calendar.timegm(time.gmtime()))
+                        thumbnail = thumbnail.replace('{width}', '1920').replace('{height}', '1080')
+                        embed.set_image(url=thumbnail)
+                        await channel.send(embed=embed)
                         db_stream_checker.insert({"last_stream_id": last_stream_id})
                     except Exception as e:
                         logger.error(
