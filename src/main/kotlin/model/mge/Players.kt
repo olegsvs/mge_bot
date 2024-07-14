@@ -82,6 +82,7 @@ data class GameLog(
             "dropped" -> "❌ Дроп"
             "freedropped" -> "❎ Дроп без последствий"
             "playing" -> "\uD83D\uDE80 В процессе"
+            "selected" -> "\uD83C\uDFAF Выбрана"
             else -> status
         }
 }
