@@ -30,11 +30,9 @@ import model.mge.Bases
 import model.mge.Player
 import model.mge.Players
 import model.mge.Trophies
-import model.telegraph.*
 import model.twitch.CoolDown
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.net.URLEncoder
 import java.text.DecimalFormat
 import java.time.LocalDateTime
@@ -46,9 +44,9 @@ val dotenv: Dotenv = Dotenv.load()!!
 
 val botAccessToken = dotenv.get("TWITCH_OAUTH_TOKEN").replace("'", "")
 const val minuteInMillis = 60_000L
-const val infoRefreshRateTimeMinutes: Int = 10
-const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 10m
-const val twitchCommandsCoolDownInMillis: Long = 10 * minuteInMillis // 10m
+const val infoRefreshRateTimeMinutes: Int = 1
+const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 1m
+const val twitchCommandsCoolDownInMillis: Long = 5 * minuteInMillis // 5m
 val twitchDefaultRefreshRateTokensTimeMillis = dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000 - 5 * minuteInMillis
 
 val tgBotToken = dotenv.get("TG_BOT_TOKEN").replace("'", "")
@@ -56,10 +54,10 @@ val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
 
 val twitchClientId = dotenv.get("TWITCH_CLIENT_ID").replace("'", "")
 val twitchClientSecret = dotenv.get("TWITCH_CLIENT_SECRET").replace("'", "")
-val telegraphApikey = dotenv.get("TELEGRAPH_API_KEY").replace("'", "")
 val tgAdminId = dotenv.get("TG_ADMIN_ID").replace("'", "")
 val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
+val mgeDiscordUrl = dotenv.get("MGE_DISCORD_URL").replace("'", "")
 val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
 val twitchChannels = arrayOf(
     "segall",
@@ -83,26 +81,22 @@ val vkPlayLinks = mapOf(
     "praden".lowercase() to "https://live.vkplay.ru/praden",
     "melharucos".lowercase() to "https://live.vkplay.ru/melharucos"
 )
-val telegraphMapper = TelegraphMapper(mgeSiteUrl)
 var playersExt: Players = Players(listOf())
 var playersExtended: MutableList<PlayerExtended> = mutableListOf()
 var trophies: Trophies = Trophies(listOf())
 var bases: Bases = Bases(listOf())
-var lastDateTimeUpdated = ""
 var lastTimeUpdated = ""
-var trophiesUrl = ""
-var mapUrl = "https://telegra.ph/MGE-Map-07-06"
-var editMapUrl = "https://api.telegra.ph/editPage/MGE-Map-07-06"
+val trophiesUrl = "${mgeSiteUrl}/#/trophies"
+val mapUrl = "${mgeSiteUrl}/#/map"
+val mgeLinksUrl = "${mgeSiteUrl}/#/links"
+val mgeBingoUrl = "${mgeSiteUrl}/#/bingo"
+val mgeNewsPaperUrl = "${mgeSiteUrl}/#/news"
+val mgeRulesUrl = "${mgeSiteUrl}/#/rules"
 val coolDowns: MutableList<CoolDown> = mutableListOf()
 val tgMessagesToDelete = mutableMapOf<Long, ChatId>()
 
 data class PlayerExtended(
     val player: Player,
-    val telegraphUrl: String,
-    val inventoryUrl: String,
-    val effectsUrl: String,
-    val logGamesUrl: String,
-    val logActionsUrl: String,
     val onlineOnTwitch: Boolean = false,
     val vkPlayLink: String,
     val currentGameHLTBAvgTime: String,
@@ -136,21 +130,6 @@ val twitchClient: TwitchClient = TwitchClientBuilder.builder()
     .withFeignLogLevel(feign.Logger.Level.BASIC)
     .withDefaultEventHandler(SimpleEventHandler::class.java)
     .build()
-
-val telegraphHttpClient = HttpClient(CIO) {
-    expectSuccess = true
-    install(Logging) {
-        level = LogLevel.ALL
-    }
-    install(HttpTimeout)
-    install(ContentNegotiation) {
-        json(Json {
-            prettyPrint = true
-            isLenient = true
-            ignoreUnknownKeys = true
-        })
-    }
-}
 
 val httpClient = HttpClient(CIO) {
     expectSuccess = true
@@ -186,42 +165,32 @@ val tgBot = bot {
                 val markup = InlineKeyboardMarkup.create(
                     listOf(
                         InlineKeyboardButton.Url(
-                            text = "Инфо",
-                            url = player.telegraphUrl,
+                            text = "Подробнее",
+                            url = mgeSiteUrl,
                         ),
                         InlineKeyboardButton.Url(
-                            text = "Характеристики",
-                            url = "${player.telegraphUrl}#Характеристики",
-                        ),
-                    ),
-                    listOf(
-                        InlineKeyboardButton.Url(
-                            text = "Семья",
-                            url = "${player.telegraphUrl}#Семья",
-                        ),
-                        InlineKeyboardButton.Url(
-                            text = "Инвентарь",
-                            url = player.inventoryUrl,
+                            text = "Дискорд МГЕ",
+                            url = mgeDiscordUrl,
                         ),
                     ),
                     listOf(
                         InlineKeyboardButton.Url(
-                            text = "База",
-                            url = "${player.telegraphUrl}#База",
+                            text = "Полезные ссылки",
+                            url = mgeLinksUrl,
                         ),
                         InlineKeyboardButton.Url(
-                            text = "Эффекты",
-                            url = player.effectsUrl,
+                            text = "Бинго",
+                            url = mgeBingoUrl,
                         ),
                     ),
                     listOf(
                         InlineKeyboardButton.Url(
-                            text = "Лог действий",
-                            url = player.logActionsUrl,
+                            text = "Газета",
+                            url = mgeNewsPaperUrl,
                         ),
                         InlineKeyboardButton.Url(
-                            text = "Лог игр",
-                            url = player.logGamesUrl,
+                            text = "Правила",
+                            url = mgeRulesUrl,
                         ),
                     ),
                 )
@@ -319,7 +288,6 @@ fun main(args: Array<String>) {
     Timer().scheduleAtFixedRate(object : TimerTask() {
         override fun run() {
             runBlocking {
-                refreshMapTask()
                 fetchData()
             }
         }
@@ -387,94 +355,12 @@ var magistrateIsOnlineOnTwitch = false
 suspend fun fetchData() {
     try {
         val response = httpClient.get(mgeApiUrl).bodyAsText()
-        val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
-        val timeOnlyFormatter = DateTimeFormatter.ofPattern("HH:mm")
         trophies = Gson().fromJson(response, Trophies::class.java)
         playersExt = Gson().fromJson(response, Players::class.java)
         bases = Gson().fromJson(response, Bases::class.java)
-        val localLastUpdated = LocalDateTime.now().format(formatter) + " GMT+3"
+        val timeOnlyFormatter = DateTimeFormatter.ofPattern("HH:mm")
         val localLastTimeUpdated = LocalDateTime.now().format(timeOnlyFormatter)
         playersExt.players.forEachIndexed { index, player ->
-            val telegraphUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-07-06") {
-                    timeout {
-                        requestTimeoutMillis = 60000
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        RootPage(
-                            telegraphMapper.mapPlayerToTelegraph(player, index, bases, mapUrl, localLastUpdated),
-                            telegraphApikey,
-                            "Инфо ${player.name}",
-                            returnContent = false
-                        )
-                    )
-                }.body<Root>().result.url
-            delay(2000L)
-            val inventoryUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-inv-07-06") {
-                    timeout {
-                        requestTimeoutMillis = 60000
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        RootPage(
-                            telegraphMapper.mapInventoryToTelegraph(player, localLastUpdated),
-                            telegraphApikey,
-                            "Инвентарь ${player.name}",
-                            returnContent = false
-                        )
-                    )
-                }.body<Root>().result.url
-            delay(2000L)
-            val effectsUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-effects-07-06") {
-                    timeout {
-                        requestTimeoutMillis = 60000
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        RootPage(
-                            telegraphMapper.mapEffectsToTelegraph(player, localLastUpdated),
-                            telegraphApikey,
-                            "Эффекты ${player.name}",
-                            returnContent = false
-                        )
-                    )
-                }.body<Root>().result.url
-            delay(2000L)
-            val logGamesUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-games-07-06") {
-                    timeout {
-                        requestTimeoutMillis = 60000
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        RootPage(
-                            telegraphMapper.mapGameLogsToTelegraph(player, localLastUpdated),
-                            telegraphApikey,
-                            "Лог игр ${player.name}",
-                            returnContent = false
-                        )
-                    )
-                }.body<Root>().result.url
-            delay(2000L)
-            val logActionsUrl =
-                telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Player-${index + 1}-log-actions-07-06") {
-                    timeout {
-                        requestTimeoutMillis = 60000
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(
-                        RootPage(
-                            telegraphMapper.mapActionLogsToTelegraph(player, localLastUpdated),
-                            telegraphApikey,
-                            "Лог действий ${player.name}",
-                            returnContent = false
-                        )
-                    )
-                }.body<Root>().result.url
-            delay(2000L)
             var isOnlineOnTwitch = false
             try {
                 val twitchStreamResponse =
@@ -510,11 +396,6 @@ suspend fun fetchData() {
                     playersExtended.indexOf(playerExt),
                     PlayerExtended(
                         player,
-                        telegraphUrl,
-                        inventoryUrl,
-                        effectsUrl,
-                        logGamesUrl,
-                        logActionsUrl,
                         isOnlineOnTwitch,
                         vkPlayLinks[player.name.lowercase()]!!,
                         currentGameHLTBAvgTime
@@ -524,11 +405,6 @@ suspend fun fetchData() {
                 playersExtended.add(
                     PlayerExtended(
                         player,
-                        telegraphUrl,
-                        inventoryUrl,
-                        effectsUrl,
-                        logGamesUrl,
-                        logActionsUrl,
                         isOnlineOnTwitch,
                         vkPlayLinks[player.name.lowercase()]!!,
                         currentGameHLTBAvgTime
@@ -536,68 +412,6 @@ suspend fun fetchData() {
                 )
             }
         }
-        delay(2000L)
-        trophiesUrl = telegraphHttpClient.post("https://api.telegra.ph/editPage/MGE-Trofei-07-06") {
-            timeout {
-                requestTimeoutMillis = 60000
-            }
-            contentType(ContentType.Application.Json)
-            setBody(
-                RootPage(
-                    telegraphMapper.mapTrophiesToTelegraph(trophies, localLastUpdated),
-                    telegraphApikey,
-                    "Трофеи",
-                    returnContent = false
-                )
-            )
-        }.body<Root>().result.url
-        try {
-            delay(2000L)
-            val mapUpdateTime = File("map_update_time.txt").readText()
-            val mapImageUrl = telegraphHttpClient.submitFormWithBinaryData("https://telegra.ph/upload",
-                formData = formData {
-                    append("description", "mge_map")
-                    append("image", File("mge_map.png").readBytes(), Headers.build {
-                        append(HttpHeaders.ContentType, "image/png")
-                        append(HttpHeaders.ContentDisposition, "filename=\"mge_map.png\"")
-                    })
-                }) {
-                timeout {
-                    requestTimeoutMillis = 60000
-                }
-            }.body<UploadResponse>().first().src
-            delay(2000L)
-            val mapHeaderImageUrl = telegraphHttpClient.submitFormWithBinaryData("https://telegra.ph/upload",
-                formData = formData {
-                    append("description", "mge_map_header")
-                    append("image", File("mge_map_header.png").readBytes(), Headers.build {
-                        append(HttpHeaders.ContentType, "image/png")
-                        append(HttpHeaders.ContentDisposition, "filename=\"mge_map_header.png\"")
-                    })
-                }) {
-                timeout {
-                    requestTimeoutMillis = 60000
-                }
-            }.body<UploadResponse>().first().src
-            delay(2000L)
-            telegraphHttpClient.post(editMapUrl) {
-                timeout {
-                    requestTimeoutMillis = 60000
-                }
-                contentType(ContentType.Application.Json)
-                setBody(
-                    RootPage(
-                        telegraphMapper.mapMGEMapImageToTelegraph(mapImageUrl, mapHeaderImageUrl, mapUpdateTime),
-                        telegraphApikey,
-                        "Карта",
-                        returnContent = false
-                    )
-                )
-            }.body<Root>()
-        } catch (e: Throwable) {
-            logger.error("Failed edit map page: ", e)
-        }
-
         try {
             val twitchStreamResponse = httpClient.get("https://api.twitch.tv/helix/streams?user_login=melharucos") {
                 header("Client-ID", twitchClientId)
@@ -608,8 +422,6 @@ suspend fun fetchData() {
         } catch (e: Throwable) {
             logger.error("Failed check stream: ", e)
         }
-
-        lastDateTimeUpdated = localLastUpdated
         lastTimeUpdated = localLastTimeUpdated
     } catch (e: Throwable) {
         try {
@@ -662,9 +474,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
         }
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
-                "$lastTimeUpdated ⟳${infoRefreshRateTimeMinutes}м ${getPlayerTwitchInfo(nick)}${
-                    getPlayerTphUrl(nick)
-                }"
+                "${getPlayerTwitchInfo(nick)} Подробнее: $mgeSiteUrl"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
@@ -673,8 +483,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                 "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} [${it.currentGameTwitch}] " +
                         "ДХ:${it.actionPoints.turns.daily.toTwitchString()}"
             }
-            val infoMessage =
-                "$lastTimeUpdated ⟳${infoRefreshRateTimeMinutes}м " + shortSummary.toString()
+            val infoMessage = shortSummary.toString()
                     .removeSuffix("]")
                     .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
             infoMessage.chunked(499).map {
@@ -788,9 +597,7 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             replyMarkup = inlineKeyboardMarkup,
             disableWebPagePreview = true,
             parseMode = ParseMode.HTML,
-            text = "⏰Обновлено <b>${lastDateTimeUpdated}</b> \uD83D\uDD04 каждые <b>${infoRefreshRateTimeMinutes}</b> минут\n" + "${
-                shortSummary.toString().removeSuffix("]").removePrefix("[").replace(", ", "")
-            }${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
+            text = "${shortSummary.toString().removeSuffix("]").removePrefix("[").replace(", ", "")}${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
         )
         if (!isPrivateMessage(initialMessage)) {
             tgMessagesToDelete[message.get().messageId] = ChatId.fromId(initialMessage.chat.id)
@@ -862,12 +669,6 @@ HP:${playerExt.player.hp.current}/${playerExt.player.hp.maximum},
         """.trimIndent()
 }
 
-fun getPlayerTphUrl(nick: String): String {
-    val player = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
-        ?: return ""
-    return " Инфо: ${player.telegraphUrl}"
-}
-
 fun getPlayer(nick: String): PlayerExtended? {
     return playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
 }
@@ -881,18 +682,6 @@ fun refreshTokensTask() {
         logger.info("refreshTokensTask process called")
     } catch (e: Throwable) {
         logger.error("Failed call restart script:", e)
-    }
-}
-
-fun refreshMapTask() {
-    logger.info("refreshMapTask start")
-    val processBuilder = ProcessBuilder()
-    processBuilder.command("bash", "-c", "cd /home/bot/mge_bot/ && . refresh_map.sh")
-    try {
-        processBuilder.start()
-        logger.info("refreshMapTask process called")
-    } catch (e: Throwable) {
-        logger.error("Failed call refresh map script:", e)
     }
 }
 
