@@ -459,8 +459,27 @@ class FamilyData(
     }
 }
 
-/*
-@Serializable
-data class Skills(
-    val skills: List<Skill> = listOf()
-) {}*/
+data class PlayerExtended(
+    val player: Player,
+    val onlineOnTwitch: Boolean = false,
+    val vkPlayLink: String,
+    val currentGameHLTBAvgTime: String,
+) {
+    val onlineOnTwitchEmoji: String
+        get() {
+            return if (onlineOnTwitch) {
+                "\uD83D\uDCE2"
+            } else {
+                ""
+            }
+        }
+
+    val onlineOnTwitchForTelegramEmoji: String
+        get() {
+            return if (onlineOnTwitch) {
+                "\uD83D\uDFE2"
+            } else {
+                "\uD83D\uDD34"
+            }
+        }
+}

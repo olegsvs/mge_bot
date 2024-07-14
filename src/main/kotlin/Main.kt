@@ -26,10 +26,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import model.*
-import model.mge.Bases
-import model.mge.Player
-import model.mge.Players
-import model.mge.Trophies
+import model.mge.*
 import model.twitch.CoolDown
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -47,7 +44,8 @@ const val minuteInMillis = 60_000L
 const val infoRefreshRateTimeMinutes: Int = 1
 const val infoRefreshRateTimeMillis: Long = infoRefreshRateTimeMinutes * minuteInMillis // 1m
 const val twitchCommandsCoolDownInMillis: Long = 5 * minuteInMillis // 5m
-val twitchDefaultRefreshRateTokensTimeMillis = dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000 - 5 * minuteInMillis
+val twitchDefaultRefreshRateTokensTimeMillis =
+    dotenv.get("TWITCH_EXPIRES_IN").replace("'", "").toLong() * 1000 - 5 * minuteInMillis
 
 val tgBotToken = dotenv.get("TG_BOT_TOKEN").replace("'", "")
 val botOAuth2Credential = OAuth2Credential("twitch", botAccessToken)
@@ -59,18 +57,7 @@ val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
 val mgeDiscordUrl = dotenv.get("MGE_DISCORD_URL").replace("'", "")
 val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
-val twitchChannels = arrayOf(
-    "segall",
-    "roadhouse",
-    "UncleBjorn",
-    "praden",
-    "UselessMouth",
-    "guit88man",
-    "Browjey",
-    "f1ashko",
-    "melharucos"
-)
-val vkPlayLinks = mapOf(
+val twitchAndVKPlayLinks = mapOf(
     "UncleBjorn".lowercase() to "https://live.vkplay.ru/unclebjorn",
     "UselessMouth".lowercase() to "https://live.vkplay.ru/uzya",
     "F1ashko".lowercase() to "https://live.vkplay.ru/f1ashko",
@@ -81,10 +68,8 @@ val vkPlayLinks = mapOf(
     "praden".lowercase() to "https://live.vkplay.ru/praden",
     "melharucos".lowercase() to "https://live.vkplay.ru/melharucos"
 )
-var playersExt: Players = Players(listOf())
+var players: List<Player> = listOf()
 var playersExtended: MutableList<PlayerExtended> = mutableListOf()
-var trophies: Trophies = Trophies(listOf())
-var bases: Bases = Bases(listOf())
 var lastTimeUpdated = ""
 val trophiesUrl = "${mgeSiteUrl}/#/trophies"
 val mapUrl = "${mgeSiteUrl}/#/map"
@@ -94,31 +79,6 @@ val mgeNewsPaperUrl = "${mgeSiteUrl}/#/news"
 val mgeRulesUrl = "${mgeSiteUrl}/#/rules"
 val coolDowns: MutableList<CoolDown> = mutableListOf()
 val tgMessagesToDelete = mutableMapOf<Long, ChatId>()
-
-data class PlayerExtended(
-    val player: Player,
-    val onlineOnTwitch: Boolean = false,
-    val vkPlayLink: String,
-    val currentGameHLTBAvgTime: String,
-) {
-    val onlineOnTwitchEmoji: String
-        get() {
-            return if (onlineOnTwitch) {
-                "\uD83D\uDCE2"
-            } else {
-                ""
-            }
-        }
-
-    val onlineOnTwitchForTelegramEmoji: String
-        get() {
-            return if (onlineOnTwitch) {
-                "\uD83D\uDFE2"
-            } else {
-                "\uD83D\uDD34"
-            }
-        }
-}
 
 val twitchClient: TwitchClient = TwitchClientBuilder.builder()
     .withEnableChat(true)
@@ -307,7 +267,7 @@ fun main(args: Array<String>) {
 
     twitchClient.chat.joinChannel("olegsvs")
     if (joinToTwitch) {
-        for (twitchChannel in twitchChannels) {
+        for (twitchChannel in twitchAndVKPlayLinks.keys) {
             twitchClient.chat.joinChannel(twitchChannel)
         }
     }
@@ -335,7 +295,7 @@ fun main(args: Array<String>) {
         }
         if (event.message.startsWith("!mge_hltb ")) {
             GlobalScope.launch {
-                if (!event.message.removePrefix("!mge_hltb ").trim().isEmpty()) {
+                if (event.message.removePrefix("!mge_hltb ").trim().isNotEmpty()) {
                     val gameName =
                         event.message.removePrefix("!mge_hltb ").replace("\uDB40\uDC00", "").replace("@", "").trim()
                     twitchHLTBCommand(
@@ -355,12 +315,10 @@ var magistrateIsOnlineOnTwitch = false
 suspend fun fetchData() {
     try {
         val response = httpClient.get(mgeApiUrl).bodyAsText()
-        trophies = Gson().fromJson(response, Trophies::class.java)
-        playersExt = Gson().fromJson(response, Players::class.java)
-        bases = Gson().fromJson(response, Bases::class.java)
+        players = Gson().fromJson(response, Players::class.java).players
         val timeOnlyFormatter = DateTimeFormatter.ofPattern("HH:mm")
         val localLastTimeUpdated = LocalDateTime.now().format(timeOnlyFormatter)
-        playersExt.players.forEachIndexed { index, player ->
+        players.forEach { player ->
             var isOnlineOnTwitch = false
             try {
                 val twitchStreamResponse =
@@ -377,12 +335,24 @@ suspend fun fetchData() {
             try {
                 player.gameLogs.firstOrNull()?.let {
                     val hltbProxyResponse =
-                        httpClient.get("https://hltb-proxy.fly.dev/v1/query?title=${URLEncoder.encode(it.game.name.replace("™", ""), "utf-8")}").bodyAsText()
-                    val part = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2, hltbProxyResponse.length)
+                        httpClient.get(
+                            "https://hltb-proxy.fly.dev/v1/query?title=${
+                                URLEncoder.encode(
+                                    it.game.name.replace(
+                                        "™",
+                                        ""
+                                    ), "utf-8"
+                                )
+                            }"
+                        ).bodyAsText()
+                    val part = hltbProxyResponse.subSequence(
+                        hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2,
+                        hltbProxyResponse.length
+                    )
                     val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
                     val hours = seconds / 3600
                     val minutes = (seconds % 3600) / 60
-                    if(hours != 0 || minutes != 0) {
+                    if (hours != 0 || minutes != 0) {
                         currentGameHLTBAvgTime = "HLTB:${hours}ч${minutes}м"
                     }
                     logger.info("hltb: ${it.game.name}, result: ${currentGameHLTBAvgTime}, data: $hltbProxyResponse")
@@ -390,23 +360,21 @@ suspend fun fetchData() {
             } catch (e: Throwable) {
                 logger.error("Failed get hltb: ", e)
             }
-            val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == player.name.lowercase().trim() }
-            if(playerExt != null) {
-                playersExtended.set(
-                    playersExtended.indexOf(playerExt),
-                    PlayerExtended(
-                        player,
-                        isOnlineOnTwitch,
-                        vkPlayLinks[player.name.lowercase()]!!,
-                        currentGameHLTBAvgTime
-                    )
+            val playerExt =
+                playersExtended.firstOrNull { it.player.name.lowercase().trim() == player.name.lowercase().trim() }
+            if (playerExt != null) {
+                playersExtended[playersExtended.indexOf(playerExt)] = PlayerExtended(
+                    player,
+                    isOnlineOnTwitch,
+                    twitchAndVKPlayLinks[player.name.lowercase()]!!,
+                    currentGameHLTBAvgTime
                 )
             } else {
                 playersExtended.add(
                     PlayerExtended(
                         player,
                         isOnlineOnTwitch,
-                        vkPlayLinks[player.name.lowercase()]!!,
+                        twitchAndVKPlayLinks[player.name.lowercase()]!!,
                         currentGameHLTBAvgTime
                     )
                 )
@@ -440,7 +408,7 @@ suspend fun fetchData() {
 fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
         logger.info("twitch, mge_info, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
-        if(lastTimeUpdated.isEmpty()) {
+        if (lastTimeUpdated.isEmpty()) {
             event.reply(twitchClient.chat, "Обновляемся, попробуйте через минуту...")
             return
         }
@@ -479,13 +447,13 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                 event.reply(twitchClient.chat, it)
             }
         } else {
-            val shortSummary = playersExt.players.map {
+            val shortSummary = players.map {
                 "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} [${it.currentGameTwitch}] " +
                         "ДХ:${it.actionPoints.turns.daily.toTwitchString()}"
             }
             val infoMessage = shortSummary.toString()
-                    .removeSuffix("]")
-                    .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
+                .removeSuffix("]")
+                .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
@@ -496,22 +464,37 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
     }
 }
 
+@Suppress("BlockingMethodInNonBlockingContext")
 suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
     try {
         logger.info("twitch, hltb, gameName: ${gameName}, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         val hltbProxyResponse =
-            httpClient.get("https://hltb-proxy.fly.dev/v1/query?title=${URLEncoder.encode(gameName.replace("™", ""), "utf-8")}").bodyAsText()
-        if(hltbProxyResponse.length<10) {
+            httpClient.get(
+                "https://hltb-proxy.fly.dev/v1/query?title=${
+                    URLEncoder.encode(
+                        gameName.replace("™", ""),
+                        "utf-8"
+                    )
+                }"
+            ).bodyAsText()
+        if (hltbProxyResponse.length < 10) {
             event.reply(twitchClient.chat, "Не найдено Sadge")
             return
         }
-        val partName = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("gameName") + "gameName".length + 2, hltbProxyResponse.length)
-        val gameNameResult = partName.subSequence(0, partName.indexOf(",\"")).toString().removePrefix("\"").removeSuffix("\"")
-        val part = hltbProxyResponse.subSequence(hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2, hltbProxyResponse.length)
+        val partName = hltbProxyResponse.subSequence(
+            hltbProxyResponse.indexOf("gameName") + "gameName".length + 2,
+            hltbProxyResponse.length
+        )
+        val gameNameResult =
+            partName.subSequence(0, partName.indexOf(",\"")).toString().removePrefix("\"").removeSuffix("\"")
+        val part = hltbProxyResponse.subSequence(
+            hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2,
+            hltbProxyResponse.length
+        )
         val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
         val hours = seconds / 3600
         val minutes = (seconds % 3600) / 60
-        if(hours != 0 || minutes != 0) {
+        if (hours != 0 || minutes != 0) {
             val result = "$gameNameResult HLTB AVG:${hours}ч${minutes}м"
             event.reply(twitchClient.chat, result)
             logger.info("hltb: ${gameName}, result: ${result}, data: $hltbProxyResponse")
@@ -528,7 +511,7 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
 @OptIn(DelicateCoroutinesApi::class)
 suspend fun tgMGEInfoCommand(initialMessage: Message) {
     try {
-        if(lastTimeUpdated.isEmpty()) {
+        if (lastTimeUpdated.isEmpty()) {
             tgBot.sendMessage(
                 chatId = ChatId.fromId(initialMessage.chat.id),
                 disableWebPagePreview = true,
@@ -538,25 +521,25 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             return
         }
         val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
-            playersExt.players.subList(0, 2).map {
+            players.subList(0, 2).map {
                 InlineKeyboardButton.CallbackData(
                     text = it.name,
                     callbackData = it.name
                 )
             },
-            playersExt.players.subList(2, 4).map {
+            players.subList(2, 4).map {
                 InlineKeyboardButton.CallbackData(
                     text = it.name,
                     callbackData = it.name
                 )
             },
-            playersExt.players.subList(4, 6).map {
+            players.subList(4, 6).map {
                 InlineKeyboardButton.CallbackData(
                     text = it.name,
                     callbackData = it.name
                 )
             },
-            playersExt.players.subList(6, 8).map {
+            players.subList(6, 8).map {
                 InlineKeyboardButton.CallbackData(
                     text = it.name,
                     callbackData = it.name
@@ -578,10 +561,10 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             ),
         )
 
-        val shortSummary = playersExt.players.map {
+        val shortSummary = players.map {
             var twitchGameFormatted = ""
-            if(getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
-                twitchGameFormatted = "\n\uD83D\uDD54"+getPlayer(it.name)!!.currentGameHLTBAvgTime
+            if (getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
+                twitchGameFormatted = "\n\uD83D\uDD54" + getPlayer(it.name)!!.currentGameHLTBAvgTime
             }
             ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
                     " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
@@ -597,7 +580,9 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             replyMarkup = inlineKeyboardMarkup,
             disableWebPagePreview = true,
             parseMode = ParseMode.HTML,
-            text = "${shortSummary.toString().removeSuffix("]").removePrefix("[").replace(", ", "")}${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
+            text = "${
+                shortSummary.toString().removeSuffix("]").removePrefix("[").replace(", ", "")
+            }${if (isPrivateMessage(initialMessage)) "" else "❎Сообщение автоудалится через <b>5</b> минут\n"}✅Выберите стримера для получения сводки\uD83D\uDC47"
         )
         if (!isPrivateMessage(initialMessage)) {
             tgMessagesToDelete[message.get().messageId] = ChatId.fromId(initialMessage.chat.id)
@@ -655,7 +640,7 @@ fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок под ником $nick не найден Sadge"
     return """${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} УР${playerExt.player.level.current},
-🎮${playerExt.player.currentGameTwitch}${if(playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
+🎮${playerExt.player.currentGameTwitch}${if (playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
 ⭐${playerExt.player.actionPoints.turns.toTwitchString()}, ${playerExt.player.actionPoints.movement.toTwitchString()}, ${playerExt.player.actionPoints.exploring.toTwitchString()},
 Статус:${playerExt.player.states.main.mainStateFormatted},
 ДД:${DecimalFormat("# ##0").format(playerExt.player.dailyIncome).trim()},
