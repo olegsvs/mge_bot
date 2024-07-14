@@ -456,7 +456,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                     val nextRollSeconds = (nextRollTime % 3600) % 60
                     event.reply(
                         twitchClient.chat,
-                        "КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                        "Для команды '$commandText' КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
                     )
                     return
                 } else {
