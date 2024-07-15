@@ -340,7 +340,7 @@ suspend fun fetchData() {
                                     it.game.name.replace(
                                         "™",
                                         ""
-                                    ), "utf-8"
+                                    ).replace(":",""), "utf-8"
                                 )
                             }"
                         ).bodyAsText()
@@ -495,7 +495,7 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
             httpClient.get(
                 "https://hltb-proxy.fly.dev/v1/query?title=${
                     URLEncoder.encode(
-                        gameName.replace("™", ""),
+                        gameName.replace("™", "").replace(":",""),
                         "utf-8"
                     )
                 }"
