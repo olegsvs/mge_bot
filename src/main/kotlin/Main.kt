@@ -129,7 +129,7 @@ val tgBot = bot {
                             url = mgeSiteUrl,
                         ),
                         InlineKeyboardButton.Url(
-                            text = "Дискорд MGE",
+                            text = "Дискорд МГЕ",
                             url = mgeDiscordUrl,
                         ),
                     ),
@@ -287,6 +287,7 @@ fun main(args: Array<String>) {
                         event.message.removePrefix("!mge_info ").replace("\uDB40\uDC00", "").replace("@", "").trim()
                     twitchMGEInfoCommand(
                         event,
+                        commandText = "!mge_info$nick",
                         nick
                     )
                 }
@@ -404,7 +405,7 @@ suspend fun fetchData() {
 
 }
 
-fun twitchMGEInfoCommand(event: ChannelMessageEvent, nick: String? = null) {
+fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
         logger.info("twitch, mge_info, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         if (lastTimeUpdated.isEmpty()) {
@@ -412,16 +413,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, nick: String? = null) {
             return
         }
         if (!event.permissions.contains(CommandPermission.MODERATOR) && !event.permissions.contains(CommandPermission.BROADCASTER)) {
-            var cd :CoolDown? = null
-            if(!nick.isNullOrEmpty() && getPlayerTwitchInfo(nick).isEmpty()) {
-                cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == "!mge_info" }
-            } else {
-                cd = if(nick.isNullOrEmpty()){
-                    coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == "!mge_info" }
-                } else{
-                    coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == "!mge_info $nick" }
-                }
-            }
+            val cd = coolDowns.firstOrNull { it.channelName == event.channel!!.name && it.commandText == commandText }
             if (cd != null) {
                 val now = System.currentTimeMillis() / 1000
                 val cdInSeconds = (cd.coolDownMillis / 1000)
@@ -430,38 +422,30 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, nick: String? = null) {
                     val nextRollTime = (cdInSeconds - diff)
                     val nextRollMinutes = (nextRollTime % 3600) / 60
                     val nextRollSeconds = (nextRollTime % 3600) % 60
-                    if(nick.isNullOrEmpty() || getPlayerTwitchInfo(nick).isEmpty()) {
-                        event.reply(
-                            twitchClient.chat,
-                            "Для команды '!mge_info' КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
-                        )
-                    } else {
-                        event.reply(
-                            twitchClient.chat,
-                            "Для команды '!mge_info $nick' КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
-                        )
-                    }
+                    event.reply(
+                        twitchClient.chat,
+                        "Для команды '$commandText' КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                    )
                     return
                 } else {
                     coolDowns.remove(cd)
                 }
             }
-        }
-        if (!nick.isNullOrEmpty() && getPlayerTwitchInfo(nick).isNotEmpty()) {
-            val info = getPlayerTwitchInfo(nick)
-            val infoMessage =
-                "$info Подробнее: $mgeSiteUrl"
-            infoMessage.chunked(499).map {
-                event.reply(twitchClient.chat, it)
-            }
             coolDowns.add(
                 CoolDown(
                     channelName = event.channel!!.name,
-                    commandText = "!mge_info $nick",
+                    commandText = commandText,
                     coolDownMillis = twitchCommandsCoolDownInMillis,
                     lastUsageInMillis = System.currentTimeMillis()
                 )
             )
+        }
+        if (!nick.isNullOrEmpty()) {
+            val infoMessage =
+                "${getPlayerTwitchInfo(nick)} Подробнее: $mgeSiteUrl"
+            infoMessage.chunked(499).map {
+                event.reply(twitchClient.chat, it)
+            }
         } else {
             val shortSummary = players.map {
                 "${it.name} ${getPlayer(it.name)!!.onlineOnTwitchEmoji} [${it.currentGameTwitch}] " +
@@ -473,15 +457,8 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, nick: String? = null) {
             infoMessage.chunked(499).map {
                 event.reply(twitchClient.chat, it)
             }
-            coolDowns.add(
-                CoolDown(
-                    channelName = event.channel!!.name,
-                    commandText = "!mge_info",
-                    coolDownMillis = twitchCommandsCoolDownInMillis,
-                    lastUsageInMillis = System.currentTimeMillis()
-                )
-            )
         }
+
     } catch (e: Throwable) {
         logger.error("Failed twitch mge_info command: ", e)
     }
@@ -588,8 +565,6 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             var twitchGameFormatted = ""
             if (getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
                 twitchGameFormatted = "\n\uD83D\uDD54" + getPlayer(it.name)!!.currentGameHLTBAvgTime
-            } else {
-                twitchGameFormatted = "\n\uD83D\uDD54 HLTB: -"
             }
             ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
                     " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
@@ -663,7 +638,7 @@ fun getPlayerTgInfo(nick: String): String {
 
 fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
-        ?: return ""
+        ?: return "Игрок под ником $nick не найден Sadge"
     return """${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} УР${playerExt.player.level.current},
 🎮${playerExt.player.currentGameTwitch}${if (playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
 ⭐${playerExt.player.actionPoints.turns.toTwitchString()}, ${playerExt.player.actionPoints.movement.toTwitchString()}, ${playerExt.player.actionPoints.exploring.toTwitchString()},
