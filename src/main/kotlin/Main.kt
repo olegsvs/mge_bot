@@ -565,6 +565,8 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             var twitchGameFormatted = ""
             if (getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
                 twitchGameFormatted = "\n\uD83D\uDD54" + getPlayer(it.name)!!.currentGameHLTBAvgTime
+            }else {
+                twitchGameFormatted = "\n\uD83D\uDD54 HLTB: -"
             }
             ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
                     " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
