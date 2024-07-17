@@ -129,7 +129,7 @@ val tgBot = bot {
                             url = mgeSiteUrl,
                         ),
                         InlineKeyboardButton.Url(
-                            text = "Дискорд МГЕ",
+                            text = "Дискорд MGE",
                             url = mgeDiscordUrl,
                         ),
                     ),
@@ -424,7 +424,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                     val nextRollSeconds = (nextRollTime % 3600) % 60
                     event.reply(
                         twitchClient.chat,
-                        "Для команды '$commandText' КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                        "Для команды ${commandText.replace("!mge_info", "!mge_info ").trim()} КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
                     )
                     return
                 } else {
@@ -569,7 +569,8 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
                     " / <a href=\"${getPlayer(it.name)!!.vkPlayLink}\"><b>VK</b></a> \uD83D\uDC40" +
                     " Ходы <b>${it.actionPoints.turns.daily.current}/" +
-                    "${it.actionPoints.turns.daily.maximum}</b>\n\uD83C\uDFAEИгра ${it.currentGameTg}${twitchGameFormatted}\n\n").replace(
+                    "${it.actionPoints.turns.daily.maximum}</b> Нед <b>${it.actionPoints.turns.weekly.current}/${it.actionPoints.turns.weekly.maximum}</b>" +
+                    "\n\uD83C\uDFAEИгра ${it.currentGameTg}${twitchGameFormatted}\n\n").replace(
                 " , ", ""
             )
         } + "Судья <a href=\"https://www.twitch.tv/melharucos\"><b>melharucos ${if (magistrateIsOnlineOnTwitch) "\uD83D\uDFE2" else "\uD83D\uDD34"}</b></a>" +
@@ -638,7 +639,7 @@ fun getPlayerTgInfo(nick: String): String {
 
 fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
-        ?: return "Игрок под ником $nick не найден Sadge"
+        ?: return "Игрок не найден Sadge"
     return """${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} УР${playerExt.player.level.current},
 🎮${playerExt.player.currentGameTwitch}${if (playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
 ⭐${playerExt.player.actionPoints.turns.toTwitchString()}, ${playerExt.player.actionPoints.movement.toTwitchString()}, ${playerExt.player.actionPoints.exploring.toTwitchString()},
