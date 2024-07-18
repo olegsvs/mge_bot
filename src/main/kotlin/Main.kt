@@ -460,7 +460,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
                 "${getPlayerTwitchInfo(nick)} Подробнее: $mgeSiteUrl"
-            infoMessage.chunked(499).map {
+            infoMessage.chunked(489).map {
                 event.reply(twitchClient.chat, it)
             }
         } else {
@@ -471,7 +471,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             val infoMessage = shortSummary.toString()
                 .removeSuffix("]")
                 .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
-            infoMessage.chunked(499).map {
+            infoMessage.chunked(489).map {
                 event.reply(twitchClient.chat, it)
             }
         }
