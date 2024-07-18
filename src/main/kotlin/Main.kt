@@ -57,6 +57,9 @@ val mgeApiUrl = dotenv.get("MGE_API_JSON_URL").replace("'", "")
 val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
 val mgeDiscordUrl = dotenv.get("MGE_DISCORD_URL").replace("'", "")
 val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
+val sendHintToTwitchAtStart = dotenv.get("SEND_HINT_TO_TWITCH_CHANNELS").lowercase() == "true"
+val HLTBProxyUrl=dotenv.get("HLTB_PROXY_URL").replace("'", "")
+
 val twitchAndVKPlayLinks = mapOf(
     "UncleBjorn".lowercase() to "https://live.vkplay.ru/unclebjorn",
     "UselessMouth".lowercase() to "https://live.vkplay.ru/uzya",
@@ -271,6 +274,18 @@ fun main(args: Array<String>) {
             twitchClient.chat.joinChannel(twitchChannel)
         }
     }
+    if (sendHintToTwitchAtStart) {
+        try {
+            for (twitchChannel in twitchAndVKPlayLinks.keys) {
+                twitchClient.chat.sendMessage(
+                    twitchChannel,
+                    "Команды: !mge_info, !mge_info ник участника, !mge_hltb игра"
+                )
+            }
+        } catch (e: Throwable) {
+            logger.error("Failed send twitch hint: ", e)
+        }
+    }
 
     twitchClient.eventManager.onEvent(ChannelMessageEvent::class.java) { event ->
         if (event.message.equals("!mge_info")) {
@@ -336,12 +351,12 @@ suspend fun fetchData() {
                 player.gameLogs.firstOrNull()?.let {
                     val hltbProxyResponse =
                         httpClient.get(
-                            "https://hltb-proxy.fly.dev/v1/query?title=${
+                            "$HLTBProxyUrl/v1/query?title=${
                                 URLEncoder.encode(
                                     it.game.name.replace(
                                         "™",
                                         ""
-                                    ).replace(":",""), "utf-8"
+                                    ).replace(":", "").replace("®",""), "utf-8"
                                 )
                             }"
                         ).bodyAsText()
@@ -424,7 +439,9 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
                     val nextRollSeconds = (nextRollTime % 3600) % 60
                     event.reply(
                         twitchClient.chat,
-                        "Для команды ${commandText.replace("!mge_info", "!mge_info ").trim()} КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
+                        "Для команды ${
+                            commandText.replace("!mge_info", "!mge_info ").trim()
+                        } КД \uD83D\uDD5B ${nextRollMinutes}м${nextRollSeconds}с"
                     )
                     return
                 } else {
@@ -470,9 +487,9 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
         logger.info("twitch, hltb, gameName: ${gameName}, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
         val hltbProxyResponse =
             httpClient.get(
-                "https://hltb-proxy.fly.dev/v1/query?title=${
+                "$HLTBProxyUrl/v1/query?title=${
                     URLEncoder.encode(
-                        gameName.replace("™", "").replace(":",""),
+                        gameName.replace("™", "").replace(":", "").replace("®",""),
                         "utf-8"
                     )
                 }"
@@ -565,7 +582,7 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
             var twitchGameFormatted = ""
             if (getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
                 twitchGameFormatted = "\n\uD83D\uDD54" + getPlayer(it.name)!!.currentGameHLTBAvgTime
-            }else {
+            } else {
                 twitchGameFormatted = "\n\uD83D\uDD54 HLTB: -"
             }
             ("\uD83D\uDC49 <a href=\"https://www.twitch.tv/${it.name}\"><b>${it.name} ${getPlayer(it.name)!!.onlineOnTwitchForTelegramEmoji}</b></a>" +
