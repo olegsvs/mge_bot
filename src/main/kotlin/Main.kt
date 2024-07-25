@@ -353,10 +353,7 @@ suspend fun fetchData() {
                         httpClient.get(
                             "$HLTBProxyUrl/v1/query?title=${
                                 URLEncoder.encode(
-                                    it.game.name.replace(
-                                        "™",
-                                        ""
-                                    ).replace(":", "").replace("®",""), "utf-8"
+                                    it.game.name.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""), "utf-8"
                                 )
                             }"
                         ).bodyAsText()
@@ -420,6 +417,7 @@ suspend fun fetchData() {
 
 }
 
+@OptIn(DelicateCoroutinesApi::class)
 fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: String? = null) {
     try {
         logger.info("twitch, mge_info, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
@@ -460,8 +458,12 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
         if (!nick.isNullOrEmpty()) {
             val infoMessage =
                 "${getPlayerTwitchInfo(nick)} Подробнее: $mgeSiteUrl"
-            infoMessage.chunked(489).map {
-                event.reply(twitchClient.chat, it)
+
+            GlobalScope.launch {
+                infoMessage.chunked(489).map {
+                    delay(250)
+                    event.reply(twitchClient.chat, it)
+                }
             }
         } else {
             val shortSummary = players.map {
@@ -471,8 +473,11 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
             val infoMessage = shortSummary.toString()
                 .removeSuffix("]")
                 .removePrefix("[") + " Подробнее !mge_info ник, !mge_hltb игра"
-            infoMessage.chunked(489).map {
-                event.reply(twitchClient.chat, it)
+            GlobalScope.launch {
+                infoMessage.chunked(489).map {
+                    delay(250)
+                    event.reply(twitchClient.chat, it)
+                }
             }
         }
 
@@ -489,7 +494,7 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
             httpClient.get(
                 "$HLTBProxyUrl/v1/query?title=${
                     URLEncoder.encode(
-                        gameName.replace("™", "").replace(":", "").replace("®",""),
+                        gameName.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
                         "utf-8"
                     )
                 }"
@@ -660,7 +665,7 @@ fun getPlayerTwitchInfo(nick: String): String {
     val playerExt = playersExtended.firstOrNull { it.player.name.lowercase().trim() == nick.lowercase().trim() }
         ?: return "Игрок не найден Sadge"
     return """${playerExt.player.name} ${playerExt.onlineOnTwitchEmoji} УР${playerExt.player.level.current},
-🎮${playerExt.player.currentGameTwitch}${if (playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
+🎮${playerExt.player.currentGameFullTwitch}${if (playerExt.currentGameHLTBAvgTime.isEmpty()) "," else ", " + playerExt.currentGameHLTBAvgTime + ","}
 ⭐${playerExt.player.actionPoints.turns.toTwitchString()}, ${playerExt.player.actionPoints.movement.toTwitchString()}, ${playerExt.player.actionPoints.exploring.toTwitchString()},
 Статус:${playerExt.player.states.main.mainStateFormatted},
 ДД:${DecimalFormat("# ##0").format(playerExt.player.dailyIncome).trim()},

@@ -46,6 +46,17 @@ data class Player(
             return if(gameLog == null) {
                 "-"
             } else {
+                val suffix = if(gameLog.game.name.length > 20) ".." else ""
+                "${gameLog.game.name.take(20).trim()}$suffix ${gameLog.statusFormatted}"
+            }
+        }
+
+    val currentGameFullTwitch: String
+        get() {
+            val gameLog = gameLogs.firstOrNull()
+            return if(gameLog == null) {
+                "-"
+            } else {
                 "${gameLog.game.name} ${gameLog.statusFormatted}"
             }
         }

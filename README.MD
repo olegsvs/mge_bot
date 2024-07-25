@@ -6,3 +6,5 @@ Build jar:
 ```
 
 Run: see misc/jrestart.sh
+
+[HLTB server](https://github.com/olegsvs/HowLongToBeat-Proxy-API/tree/MGE)
