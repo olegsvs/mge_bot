@@ -26,6 +26,8 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import model.*
+import model.hltb.HLTBGameResponse
+import model.hltb.HLTBSearchResponse
 import model.mge.*
 import model.twitch.CoolDown
 import org.slf4j.Logger
@@ -58,7 +60,7 @@ val mgeSiteUrl = dotenv.get("MGE_SITE_URL").replace("'", "")
 val mgeDiscordUrl = dotenv.get("MGE_DISCORD_URL").replace("'", "")
 val joinToTwitch = dotenv.get("JOIN_TO_TWITCH_CHANNELS").lowercase() == "true"
 val sendHintToTwitchAtStart = dotenv.get("SEND_HINT_TO_TWITCH_CHANNELS").lowercase() == "true"
-val HLTBProxyUrl=dotenv.get("HLTB_PROXY_URL").replace("'", "")
+val HLTBProxyUrl = dotenv.get("HLTB_PROXY_URL").replace("'", "")
 
 val twitchAndVKPlayLinks = mapOf(
     "UncleBjorn".lowercase() to "https://live.vkplay.ru/unclebjorn",
@@ -347,27 +349,30 @@ suspend fun fetchData() {
                 logger.error("Failed check stream: ", e)
             }
             var currentGameHLTBAvgTime = ""
+            var currentGameHLTBGameId = 0
             try {
                 player.gameLogs.firstOrNull()?.let {
-                    val hltbProxyResponse =
+                    val hltbSearchResponse =
                         httpClient.get(
                             "$HLTBProxyUrl/v1/query?title=${
                                 URLEncoder.encode(
-                                    it.game.name.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""), "utf-8"
+                                    it.game.name.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
+                                    "utf-8"
                                 )
                             }"
-                        ).bodyAsText()
-                    val part = hltbProxyResponse.subSequence(
-                        hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2,
-                        hltbProxyResponse.length
-                    )
-                    val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
-                    val hours = seconds / 3600
-                    val minutes = (seconds % 3600) / 60
-                    if (hours != 0 || minutes != 0) {
-                        currentGameHLTBAvgTime = "HLTB:${hours}ч${minutes}м"
+                        ).body<Array<HLTBSearchResponse>>().firstOrNull()
+                    hltbSearchResponse?.let { response ->
+                        val hltbOverviewResponse =
+                            httpClient.get(
+                                "$HLTBProxyUrl/v1/overview?id=${hltbSearchResponse.gameId}"
+                            ).body<HLTBGameResponse>()
+                        hltbOverviewResponse.singleplayerTime?.let {
+                            currentGameHLTBAvgTime =
+                                "HLTB:${hltbOverviewResponse.singleplayerTime.mainStory.averageSecFormatted}"
+                        }
+                        currentGameHLTBGameId = response.gameId
+                        logger.info("hltb: ${it.game.name}, result: ${currentGameHLTBAvgTime}, data: $hltbOverviewResponse $response")
                     }
-                    logger.info("hltb: ${it.game.name}, result: ${currentGameHLTBAvgTime}, data: $hltbProxyResponse")
                 }
             } catch (e: Throwable) {
                 logger.error("Failed get hltb: ", e)
@@ -379,7 +384,8 @@ suspend fun fetchData() {
                     player,
                     isOnlineOnTwitch,
                     twitchAndVKPlayLinks[player.name.lowercase()]!!,
-                    currentGameHLTBAvgTime
+                    currentGameHLTBAvgTime,
+                    currentGameHLTBGameId
                 )
             } else {
                 playersExtended.add(
@@ -387,7 +393,8 @@ suspend fun fetchData() {
                         player,
                         isOnlineOnTwitch,
                         twitchAndVKPlayLinks[player.name.lowercase()]!!,
-                        currentGameHLTBAvgTime
+                        currentGameHLTBAvgTime,
+                        currentGameHLTBGameId
                     )
                 )
             }
@@ -490,7 +497,7 @@ fun twitchMGEInfoCommand(event: ChannelMessageEvent, commandText: String, nick: 
 suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
     try {
         logger.info("twitch, hltb, gameName: ${gameName}, message: ${event.message} channel: ${event.channel.name} user: ${event.user.name}")
-        val hltbProxyResponse =
+        val hltbSearchResponse =
             httpClient.get(
                 "$HLTBProxyUrl/v1/query?title=${
                     URLEncoder.encode(
@@ -498,35 +505,33 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
                         "utf-8"
                     )
                 }"
-            ).bodyAsText()
-        if (hltbProxyResponse.length < 10) {
+            ).body<Array<HLTBSearchResponse>>().firstOrNull()
+        if (hltbSearchResponse == null) {
             event.reply(twitchClient.chat, "Не найдено Sadge")
             return
         }
-        val partName = hltbProxyResponse.subSequence(
-            hltbProxyResponse.indexOf("gameName") + "gameName".length + 2,
-            hltbProxyResponse.length
-        )
-        val gameNameResult =
-            partName.subSequence(0, partName.indexOf(",\"")).toString().removePrefix("\"").removeSuffix("\"")
-        val part = hltbProxyResponse.subSequence(
-            hltbProxyResponse.indexOf("avgSeconds") + "avgSeconds".length + 2,
-            hltbProxyResponse.length
-        )
-        val seconds = part.subSequence(0, part.indexOf(",")).toString().toInt()
-        val hours = seconds / 3600
-        val minutes = (seconds % 3600) / 60
-        if (hours != 0 || minutes != 0) {
-            val result = "$gameNameResult HLTB AVG:${hours}ч${minutes}м"
-            event.reply(twitchClient.chat, result)
-            logger.info("hltb: ${gameName}, result: ${result}, data: $hltbProxyResponse")
+        val hltbOverviewResponse =
+            httpClient.get(
+                "$HLTBProxyUrl/v1/overview?id=${hltbSearchResponse.gameId}"
+            ).body<HLTBGameResponse>()
+        if(hltbOverviewResponse.singleplayerTime == null) {
+            event.reply(
+                twitchClient.chat,
+                "${hltbOverviewResponse.title}, Записей не найдено" +
+                        " https://howlongtobeat.com/game/${hltbSearchResponse.gameId}"
+            )
         } else {
-            val result = "$gameNameResult записей о времени не найдено Sadge"
-            event.reply(twitchClient.chat, result)
-            logger.info("hltb: ${gameName}, data: $hltbProxyResponse")
+            event.reply(
+                twitchClient.chat,
+                "${hltbOverviewResponse.title}, main story: ${hltbOverviewResponse.singleplayerTime.mainStory}" +
+                        " https://howlongtobeat.com/game/${hltbSearchResponse.gameId}"
+            )
         }
+
+        logger.info("twitch, hltb: ${gameName}, hltbOverviewResponse: ${hltbOverviewResponse}, hltbSearchResponse: $hltbSearchResponse")
     } catch (e: Throwable) {
         logger.error("Failed twitch hltb command: ", e)
+        event.reply(twitchClient.chat, "Произошла ошибка Sadge")
     }
 }
 
@@ -586,7 +591,12 @@ suspend fun tgMGEInfoCommand(initialMessage: Message) {
         val shortSummary = players.map {
             var twitchGameFormatted = ""
             if (getPlayer(it.name)!!.currentGameHLTBAvgTime.isNotEmpty()) {
-                twitchGameFormatted = "\n\uD83D\uDD54" + getPlayer(it.name)!!.currentGameHLTBAvgTime
+                twitchGameFormatted =
+                    "\n\uD83D\uDD54" + "<a href=\"https://howlongtobeat.com/game/${getPlayer(it.name)!!.currentGameHLTBId}\"><b>HLTB:</b></a><b>${
+                        getPlayer(
+                            it.name
+                        )!!.currentGameHLTBAvgTime.replace("HLTB:", "")
+                    }</b>"
             } else {
                 twitchGameFormatted = "\n\uD83D\uDD54 HLTB: -"
             }

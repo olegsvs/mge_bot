@@ -475,6 +475,7 @@ data class PlayerExtended(
     val onlineOnTwitch: Boolean = false,
     val vkPlayLink: String,
     val currentGameHLTBAvgTime: String,
+    val currentGameHLTBId: Int,
 ) {
     val onlineOnTwitchEmoji: String
         get() {
