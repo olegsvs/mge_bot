@@ -14,13 +14,34 @@ data class HLTBSearchResponse(
 @Serializable
 data class HLTBGameResponse(
     val title: String,
-    val singleplayerTime: SingleplayerTime?,
+    val singleplayerTime: SingleplayerTime? = null,
 )
 
 @Serializable
 data class SingleplayerTime(
-    val mainStory: AllPlaystyles,
-)
+    val mainStory: AllPlaystyles? = null,
+    val extras: AllPlaystyles? = null,
+    val completionist: AllPlaystyles? = null,
+    val speedrunTime: AllPlaystyles? = null,
+    val allPlaystyles: AllPlaystyles? = null,
+) {
+    val firstExistsTime: Pair<String, AllPlaystyles>
+        get() {
+            if (mainStory != null) {
+                return Pair("main story", mainStory)
+            } else if (extras != null) {
+                return Pair("main+extras", extras)
+            } else if (completionist != null) {
+                return Pair("completionist", completionist)
+            } else if (speedrunTime != null) {
+                return Pair("speedrunTime", speedrunTime)
+            } else if (allPlaystyles != null) {
+                return Pair("allPlaystyles", allPlaystyles)
+            } else {
+                return Pair("Записей не найдено", AllPlaystyles(0L,0L,0L))
+            }
+        }
+}
 
 @Serializable
 data class AllPlaystyles(

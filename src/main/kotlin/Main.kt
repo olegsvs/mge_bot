@@ -356,7 +356,12 @@ suspend fun fetchData() {
                         httpClient.get(
                             "$HLTBProxyUrl/v1/query?title=${
                                 URLEncoder.encode(
-                                    it.game.name.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
+                                    it.game.name
+                                        .replace("_", " ")
+                                        .replace("®", "")
+                                        .replace("™", "")
+                                        .replace("Deluxe Edition", "")
+                                        .replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
                                     "utf-8"
                                 )
                             }"
@@ -368,7 +373,7 @@ suspend fun fetchData() {
                             ).body<HLTBGameResponse>()
                         hltbOverviewResponse.singleplayerTime?.let {
                             currentGameHLTBAvgTime =
-                                "HLTB:${hltbOverviewResponse.singleplayerTime.mainStory.averageSecFormatted}"
+                                "HLTB:${hltbOverviewResponse.singleplayerTime.firstExistsTime.second.averageSecFormatted}"
                         }
                         currentGameHLTBGameId = response.gameId
                         logger.info("hltb: ${it.game.name}, result: ${currentGameHLTBAvgTime}, data: $hltbOverviewResponse $response")
@@ -501,7 +506,12 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
             httpClient.get(
                 "$HLTBProxyUrl/v1/query?title=${
                     URLEncoder.encode(
-                        gameName.replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
+                        gameName
+                            .replace("_", " ")
+                            .replace("®", "")
+                            .replace("™", "")
+                            .replace("Deluxe Edition", "")
+                            .replace("[^\\da-zA-Zа-яёА-ЯЁ\\-\\/\\’\\é ]".toRegex(), ""),
                         "utf-8"
                     )
                 }"
@@ -514,7 +524,7 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
             httpClient.get(
                 "$HLTBProxyUrl/v1/overview?id=${hltbSearchResponse.gameId}"
             ).body<HLTBGameResponse>()
-        if(hltbOverviewResponse.singleplayerTime == null) {
+        if (hltbOverviewResponse.singleplayerTime == null) {
             event.reply(
                 twitchClient.chat,
                 "${hltbOverviewResponse.title}, Записей не найдено" +
@@ -523,7 +533,8 @@ suspend fun twitchHLTBCommand(event: ChannelMessageEvent, gameName: String) {
         } else {
             event.reply(
                 twitchClient.chat,
-                "${hltbOverviewResponse.title}, main story: ${hltbOverviewResponse.singleplayerTime.mainStory}" +
+                "${hltbOverviewResponse.title}, ${hltbOverviewResponse.singleplayerTime.firstExistsTime.first}: " +
+                        "${hltbOverviewResponse.singleplayerTime.firstExistsTime.second}" +
                         " https://howlongtobeat.com/game/${hltbSearchResponse.gameId}"
             )
         }
