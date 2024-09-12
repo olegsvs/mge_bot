@@ -10,6 +10,9 @@ import com.github.twitch4j.TwitchClient
 import com.github.twitch4j.TwitchClientBuilder
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent
 import com.github.twitch4j.common.enums.CommandPermission
+import com.github.twitch4j.pubsub.events.PollsEvent
+import com.github.twitch4j.pubsub.events.PredictionCreatedEvent
+import com.github.twitch4j.pubsub.events.PredictionUpdatedEvent
 import com.google.gson.*
 import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.client.*
@@ -84,12 +87,13 @@ val mgeNewsPaperUrl = "${mgeSiteUrl}/#/news"
 val mgeRulesUrl = "${mgeSiteUrl}/#/rules"
 val coolDowns: MutableList<CoolDown> = mutableListOf()
 val tgMessagesToDelete = mutableMapOf<Long, ChatId>()
+var twitchHintIsSended = false
 
 val twitchClient: TwitchClient = TwitchClientBuilder.builder()
     .withEnableChat(true)
     .withChatAccount(botOAuth2Credential)
     .withEnableHelix(false)
-    .withEnablePubSub(false)
+    .withEnablePubSub(true)
     .withClientId(twitchClientId)
     .withClientSecret(twitchClientSecret)
     .withFeignLogLevel(feign.Logger.Level.BASIC)
@@ -254,6 +258,12 @@ fun main(args: Array<String>) {
         override fun run() {
             runBlocking {
                 fetchData()
+                for(playerExtended in playersExtended) {
+                    if(playerExtended.onlineOnTwitch) {
+                        sendHintToTwitch(playerExtended.player.name)
+                    }
+                }
+                twitchHintIsSended = true
             }
         }
     }, 0L, infoRefreshRateTimeMillis)
@@ -274,18 +284,6 @@ fun main(args: Array<String>) {
     if (joinToTwitch) {
         for (twitchChannel in twitchAndVKPlayLinks.keys) {
             twitchClient.chat.joinChannel(twitchChannel)
-        }
-    }
-    if (sendHintToTwitchAtStart) {
-        try {
-            for (twitchChannel in twitchAndVKPlayLinks.keys) {
-                twitchClient.chat.sendMessage(
-                    twitchChannel,
-                    "Команды: !mge_info, !mge_info ник участника, !mge_hltb игра"
-                )
-            }
-        } catch (e: Throwable) {
-            logger.error("Failed send twitch hint: ", e)
         }
     }
 
@@ -324,6 +322,34 @@ fun main(args: Array<String>) {
         }
         if (event.message.startsWith("!mping")) {
             pingCommand(event)
+        }
+    }
+
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "73477451") //UncleBjorn
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "43578182") //F1ashko
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "29128211") //BrowJey
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "25604128") //guit88man
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "148844345") //RoadHouse
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "35856714") //segall
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "24641245") //praden
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "22877031") //UselessMouth
+//    twitchClient.pubSub.listenForPollEvents(botOAuth2Credential, "43899589") //c_a_k_e
+//    twitchClient.eventManager.onEvent(PollsEvent::class.java, ::onPollsEvent)
+}
+
+fun onPollsEvent(pollsEvent: PollsEvent?) {
+    logger.info("pollsEvent ${pollsEvent.toString()}")
+}
+
+fun sendHintToTwitch(twitchChannel: String) {
+    if (sendHintToTwitchAtStart && !twitchHintIsSended) {
+        try {
+            twitchClient.chat.sendMessage(
+                twitchChannel,
+                "Команды: !mge_info, !mge_info ник участника, !mge_hltb игра"
+            )
+        } catch (e: Throwable) {
+            logger.error("Failed send twitch hint: ", e)
         }
     }
 }
@@ -411,6 +437,9 @@ suspend fun fetchData() {
             }.bodyAsText()
             logger.info("twitch, check stream is online, data: $twitchStreamResponse")
             magistrateIsOnlineOnTwitch = twitchStreamResponse.contains("viewer_count")
+            if(magistrateIsOnlineOnTwitch) {
+                sendHintToTwitch("melharucos")
+            }
         } catch (e: Throwable) {
             logger.error("Failed check stream: ", e)
         }
