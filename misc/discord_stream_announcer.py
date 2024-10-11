@@ -1,6 +1,7 @@
 import discord
 import asyncio
-from discord.ext import tasks
+import aiohttp
+from discord.ext import commands, tasks  # Importing tasks here
 from tinydb import TinyDB
 import logging
 import threading
@@ -19,7 +20,6 @@ from typing import Optional
 intents = discord.Intents.default()
 intents.message_content = True
 
-client = discord.Client(intents=intents)
 channel = None
 logging.basicConfig(
 #    filename=datetime.now().strftime("logs/log_stream_checker_%d_%m_%Y_%H_%M.log"),
@@ -32,54 +32,54 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_BEARER_TOKEN = os.getenv("TWITCH_BEARER_TOKEN")
-
+client = discord.Client(intents=intents)
 
 @tasks.loop(seconds=60)
 async def check_melharucos():
-    await check_stream("melharucos")
+    await check_stream("melharucos", "Дон клана Во Ван")
     
     
 @tasks.loop(seconds=60)
 async def check_segall():
-    await check_stream("segall")
+    await check_stream("segall", "Дон клана Феррари")
 
 
 @tasks.loop(seconds=60)
 async def check_roadhouse():
-    await check_stream("roadhouse")
+    await check_stream("roadhouse", "Дон клана Вротелли")
     
     
 @tasks.loop(seconds=60)
 async def check_UncleBjorn():
-    await check_stream("UncleBjorn")
+    await check_stream("UncleBjorn", "Дон клана Медветоре")
     
     
 @tasks.loop(seconds=60)
 async def check_praden():
-    await check_stream("praden")        
+    await check_stream("praden", "Дон клана Палэтти")        
     
 
 @tasks.loop(seconds=60)
 async def check_UselessMouth():
-    await check_stream("UselessMouth")      
+    await check_stream("UselessMouth", "Дон клана Чичи")      
 
 
 @tasks.loop(seconds=60)
 async def check_guit88man():
-    await check_stream("guit88man")      
+    await check_stream("guit88man", "Дон клана Скуфердини")      
 
 
 @tasks.loop(seconds=60)
 async def check_Browjey():
-    await check_stream("Browjey")      
+    await check_stream("Browjey", "Дон клана Чиллянтано")      
 
 
 @tasks.loop(seconds=60)
 async def check_f1ashko():
-    await check_stream("f1ashko")      
+    await check_stream("f1ashko", "Дон клана Фиасколли")      
 
     
-async def check_stream(user_login: str):
+async def check_stream(user_login: str, phrase: str):
     verb_form = "завёл"
     db_stream_checker = TinyDB("dbStreamChecker_" + user_login + ".json")
     last_stream_id = -1
@@ -100,11 +100,11 @@ async def check_stream(user_login: str):
                 last_stream_id = stream_id
                 username = stream["user_name"]
                 msg = (
-                    "👾 "
-                    + username
+                    "<:maferge:1212367300259483718> "
+                    + phrase
                     + " "
                     + verb_form
-                    + " стрим!"
+                    + " стрим! <:NeVPadlu:1209234801056288768>"
                 )
                 msg2 = (
                     stream["title"]
@@ -128,6 +128,10 @@ async def check_stream(user_login: str):
                         thumbnail = thumbnail.replace('{width}', '1920').replace('{height}', '1080')
                         embed.set_image(url=thumbnail)
                         await channel.send(embed=embed)
+
+                        #await channel.send(
+                        #    msg + " " + "https://www.twitch.tv/" + user_login
+                        #)
                         db_stream_checker.insert({"last_stream_id": last_stream_id})
                     except Exception as e:
                         logger.error(
@@ -146,7 +150,7 @@ async def check_stream(user_login: str):
 @client.event
 async def on_ready():
     global channel 
-    channel = client.get_channel(1214448598167719966)
+    channel = client.get_channel(827269604903616532)
     check_melharucos.start()
     check_Browjey.start()
     check_f1ashko.start()
